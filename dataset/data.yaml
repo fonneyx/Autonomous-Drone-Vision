@@ -1,0 +1,7 @@
+path: .
+train: train/images
+val: val/images
+
+# Replace this placeholder with your dataset's class names, in label-ID order.
+names:
+  0: object

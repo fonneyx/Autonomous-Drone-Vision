@@ -216,3 +216,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local model weights and user datasets
+*.pt
+/dataset/*
+!/dataset/.gitkeep
+!/dataset/data.yaml
+!/dataset/train/
+!/dataset/train/.gitkeep
+!/dataset/train/images/
+!/dataset/train/images/.gitkeep
+!/dataset/train/labels/
+!/dataset/train/labels/.gitkeep
+!/dataset/val/
+!/dataset/val/.gitkeep
+!/dataset/val/images/
+!/dataset/val/images/.gitkeep
+!/dataset/val/labels/
+!/dataset/val/labels/.gitkeep
+!/models/
+!/models/.gitkeep
