@@ -1,7 +1,8 @@
-path: .
+path: ./dataset
 train: train/images
 val: val/images
 
-# Replace this placeholder with your dataset's class names, in label-ID order.
 names:
-  0: object
+  0: obstacle
+  1: wall
+  2: pole

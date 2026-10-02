@@ -1,3 +1,4 @@
+# This project is intentionally locked to YOLOv11s only.
 model: models/yolo11s.pt
 
 detection:

@@ -28,10 +28,35 @@ py -m src.detector --source path\to\video.mp4 --no-display
 ```
 
 The first run downloads Ultralytics' `yolo11s.pt` weights if a local
-`models\yolo11s.pt` is not present. Model name, thresholds, and output paths can
-be adjusted in `config\params.yaml`. Detection results are written under
-`runs\detect`; frames containing low-confidence detections are saved under
-`dataset\collected\images`.
+`models\yolo11s.pt` is not present. This project is intentionally locked to
+YOLOv11s only; model name, thresholds, and output paths can be adjusted in
+`config\params.yaml`. Detection results are written under `runs\detect`; frames
+containing low-confidence detections are saved under `dataset\collected\images`.
+
+## External datasets and low-storage workflow
+
+If your images live on another drive or folder, do not copy them into the repo if
+you want to save SSD space. Instead, link them into the project dataset layout:
+
+```powershell
+py scripts\prepare_external_dataset.py --source D:\datasets\my-drone-dataset --mode link --split train,val
+```
+
+This will populate `dataset\train` and `dataset\val` using filesystem links when
+possible. If your system does not support links, it falls back to copying.
+
+You can then train with the repo's standard command:
+
+```powershell
+py scripts\train_local.py --data dataset\data.yaml
+```
+
+Use `--data` with another YAML file to swap datasets cleanly without changing the
+training script. For example:
+
+```powershell
+py scripts\train_local.py --data dataset\my_other_dataset.yaml
+```
 
 ## Train a model
 

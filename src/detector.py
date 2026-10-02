@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,9 +11,15 @@ import cv2
 import yaml
 from ultralytics import YOLO
 
-from src.controller import Detection, assess_detections
-from src.data_collector import LowConfidenceFrameCollector
-
+if __package__ in (None, ""):
+    ROOT = Path(__file__).resolve().parents[1]
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from src.controller import Detection, assess_detections
+    from src.data_collector import LowConfidenceFrameCollector
+else:
+    from .controller import Detection, assess_detections
+    from .data_collector import LowConfidenceFrameCollector
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = ROOT / "config" / "params.yaml"
@@ -33,12 +40,12 @@ def resolve_model(model_setting: str) -> str:
     if configured_path.is_file():
         return str(configured_path)
 
-    # Ultralytics recognizes this official model name and downloads its weights.
+    # This project is locked to YOLOv11s only.
     if configured_path.name == "yolo11s.pt":
         return "yolo11s.pt"
-    raise FileNotFoundError(
-        f"Model weights not found: {configured_path}. Provide the file or set "
-        "model to 'yolo11s.pt' to use Ultralytics' official pretrained weights."
+    raise ValueError(
+        f"Unsupported model: {configured_path.name}. This project only supports YOLOv11s "
+        "('yolo11s.pt')."
     )
 
 

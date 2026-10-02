@@ -11,6 +11,20 @@ from ultralytics import YOLO
 
 
 ROOT = Path(__file__).resolve().parent.parent
+SUPPORTED_MODEL_NAME = "yolo11s.pt"
+SUPPORTED_IMAGE_EXTENSIONS = {
+    ".bmp",
+    ".dng",
+    ".heic",
+    ".heif",
+    ".jpeg",
+    ".jpg",
+    ".jp2",
+    ".png",
+    ".tif",
+    ".tiff",
+    ".webp",
+}
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
@@ -48,6 +62,17 @@ def main() -> None:
                 "Add images and YOLO label files before training."
             )
 
+        image_files = [
+            item
+            for item in split_path.iterdir()
+            if item.is_file() and item.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+        ]
+        if not image_files:
+            raise FileNotFoundError(
+                f"Dataset {split} folder contains no images: {split_path}. "
+                "Add labeled training and validation images before running training."
+            )
+
     epochs = args.epochs if args.epochs is not None else int(training["epochs"])
     batch = args.batch if args.batch is not None else int(training["batch"])
     if epochs <= 0:
@@ -60,10 +85,15 @@ def main() -> None:
         model_setting = ROOT / model_setting
     if model_setting.is_file():
         model_path = str(model_setting)
-    elif model_setting.name == "yolo11s.pt":
-        model_path = "yolo11s.pt"
+    elif model_setting.name == SUPPORTED_MODEL_NAME:
+        model_path = SUPPORTED_MODEL_NAME
     else:
-        raise FileNotFoundError(f"Model weights not found: {model_setting}")
+        raise ValueError(
+            f"Only YOLOv11s is supported in this project. Received '{model_setting.name}'. "
+            f"Use '{SUPPORTED_MODEL_NAME}' or keep the default config."
+        )
+    if model_path != SUPPORTED_MODEL_NAME and Path(model_path).name != SUPPORTED_MODEL_NAME:
+        raise ValueError(f"Unsupported model: {model_path}. Only YOLOv11s is allowed.")
     model = YOLO(model_path)
     model.train(
         data=str(data_path),
