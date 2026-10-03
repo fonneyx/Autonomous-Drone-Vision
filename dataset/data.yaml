@@ -3,6 +3,6 @@ train: train/images
 val: val/images
 
 names:
-  0: obstacle
-  1: wall
-  2: pole
+  0: person
+  1: phone
+  2: drone
