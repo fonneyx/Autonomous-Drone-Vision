@@ -9,11 +9,12 @@ import cv2
 from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_MODEL_CANDIDATES = [
-    ROOT / "runs" / "train" / "drone-vision-2" / "weights" / "best.pt",
-    ROOT / "runs" / "train" / "drone-vision" / "weights" / "best.pt",
-    ROOT / "models" / "yolo11s.pt",
-]
+# Newest trained run first, then the pretrained base model
+DEFAULT_MODEL_CANDIDATES = sorted(
+    (ROOT / "runs" / "train").glob("*/weights/best.pt"),
+    key=lambda path: path.stat().st_mtime,
+    reverse=True,
+) + [ROOT / "models" / "yolo11s.pt"]
 
 
 def find_best_model(model_path: str | None) -> str:

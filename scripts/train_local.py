@@ -53,7 +53,7 @@ def main() -> None:
     
     # Support Master_Dataset training
     if args.master:
-        master_dataset_dir = Path("C:/Autonomous Drone Vision/Master_Dataset")
+        master_dataset_dir = ROOT.parent / "Master_Dataset"
         data_path = master_dataset_dir / "data.yaml"
         print(f"✓ Using Master_Dataset: {data_path}")
         if not data_path.is_file():
@@ -73,6 +73,8 @@ def main() -> None:
         split_path = Path(dataset_config[split])
         if not split_path.is_absolute():
             split_path = data_path.parent / split_path
+        if (split_path / "images").is_dir():
+            split_path = split_path / "images"
         if not split_path.exists():
             raise FileNotFoundError(
                 f"Dataset {split} path does not exist: {split_path}. "
@@ -127,7 +129,7 @@ def main() -> None:
         name="drone-vision",
         freeze=10,                  # Freeze first 10 layers for transfer learning
         lr0=0.001,                  # Lower learning rate for stable convergence
-        exist_ok=True,              # Allow resuming from previous training
+        exist_ok=False,             # New run folder each time (drone-vision-2, -3, ...)
     )
 
 

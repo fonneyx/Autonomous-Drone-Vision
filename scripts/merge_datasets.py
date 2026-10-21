@@ -91,11 +91,12 @@ class YOLODatasetMerger:
         
         master_yaml = {
             'path': str(self.output_dir),
-            'train': 'train',
-            'val': 'val',
-            'test': 'test',
+            'train': 'train/images',
+            'val': 'val/images',
+            'test': 'test/images',
             'nc': len(self.unified_classes),
-            'names': self.unified_classes
+            # Ultralytics expects {class_id: class_name}
+            'names': {idx: name for name, idx in self.unified_classes.items()}
         }
         
         yaml_path = self.output_dir / "data.yaml"
@@ -150,8 +151,12 @@ class YOLODatasetMerger:
         print(f"\n[INFO] Processing '{split_name}' split...")
         
         for dataset_path in self.source_datasets:
-            dataset_split_images = dataset_path / split_name / 'images'
-            dataset_split_labels = dataset_path / split_name / 'labels'
+            source_split = split_name
+            # Roboflow exports name the validation split 'valid'
+            if split_name == 'val' and not (dataset_path / 'val').exists():
+                source_split = 'valid'
+            dataset_split_images = dataset_path / source_split / 'images'
+            dataset_split_labels = dataset_path / source_split / 'labels'
             dataset_name = dataset_path.name
             
             if not dataset_split_images.exists():
@@ -226,7 +231,8 @@ def main():
     Main execution point for dataset merger.
     """
     # Configuration
-    parent_dir = Path("C:/Autonomous Drone Vision")
+    # Datasets live next to the repository folder
+    parent_dir = Path(__file__).resolve().parents[2]
     output_dir = parent_dir / "Master_Dataset"
     
     source_datasets = [
