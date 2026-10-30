@@ -1,4 +1,4 @@
-"""Train an Ultralytics YOLO model using the local dataset."""
+"""Train an Ultralytics YOLO model using the local dataset or Master Dataset."""
 
 from __future__ import annotations
 
@@ -41,21 +41,42 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, help="Override the configured epoch count.")
     parser.add_argument("--batch", type=int, help="Override the configured batch size.")
     parser.add_argument("--device", help="Override device, e.g. '0' or 'cpu'.")
+    parser.add_argument("--name", default="drone-vision", help="Run folder name under runs/train.")
+    parser.add_argument("--workers", type=int, default=8, help="Data-loading processes.")
+    parser.add_argument(
+        "--master", 
+        action="store_true",
+        help="Use Master_Dataset from parent directory instead of default dataset."
+    )
     args = parser.parse_args()
 
     config = load_config(ROOT / "config" / "params.yaml")
     training = config["training"]
-    data_path = args.data or ROOT / training["data"]
-    if not data_path.is_absolute():
-        data_path = ROOT / data_path
-    if not data_path.is_file():
-        raise FileNotFoundError(f"Dataset configuration not found: {data_path}")
+    
+    # Support Master_Dataset training
+    if args.master:
+        master_dataset_dir = ROOT.parent / "Master_Dataset"
+        data_path = master_dataset_dir / "data.yaml"
+        print(f"✓ Using Master_Dataset: {data_path}")
+        if not data_path.is_file():
+            raise FileNotFoundError(
+                f"Master_Dataset not found at {data_path}. "
+                "Run 'python scripts/merge_datasets.py' first."
+            )
+    else:
+        data_path = args.data or ROOT / training["data"]
+        if not data_path.is_absolute():
+            data_path = ROOT / data_path
+        if not data_path.is_file():
+            raise FileNotFoundError(f"Dataset configuration not found: {data_path}")
 
     dataset_config = load_config(data_path)
     for split in ("train", "val"):
         split_path = Path(dataset_config[split])
         if not split_path.is_absolute():
             split_path = data_path.parent / split_path
+        if (split_path / "images").is_dir():
+            split_path = split_path / "images"
         if not split_path.exists():
             raise FileNotFoundError(
                 f"Dataset {split} path does not exist: {split_path}. "
@@ -94,7 +115,10 @@ def main() -> None:
         )
     if model_path != SUPPORTED_MODEL_NAME and Path(model_path).name != SUPPORTED_MODEL_NAME:
         raise ValueError(f"Unsupported model: {model_path}. Only YOLOv11s is allowed.")
+    
     model = YOLO(model_path)
+    
+    # Enhanced training with freeze, learning rate, and exist_ok
     model.train(
         data=str(data_path),
         epochs=epochs,
@@ -104,7 +128,11 @@ def main() -> None:
         if args.device is not None
         else (None if training["device"] == "auto" else training["device"]),
         project=str(ROOT / training["project"]),
-        name="drone-vision",
+        name=args.name,
+        workers=args.workers,
+        freeze=10,                  # Freeze first 10 layers for transfer learning
+        lr0=0.001,                  # Lower learning rate for stable convergence
+        exist_ok=False,             # New run folder each time (drone-vision-2, -3, ...)
     )
 
 

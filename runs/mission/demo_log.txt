@@ -1,0 +1,5 @@
+﻿Pilot: C:\GitHub Projects\Autonomous Drone Vision\Autonomous-Drone-Vision\runs\mission\mission\best_model.zip
+Flight 1: success  target=vehicle  time= 16.5s final distance=  1.9 m
+Flight 2: success  target=person   time= 17.4s final distance=  1.9 m
+Flight 3: success  target=person   time= 36.5s final distance=  2.0 m
+Flight 4: success  target=person   time= 22.3s final distance=  1.9 m

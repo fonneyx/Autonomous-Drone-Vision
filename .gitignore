@@ -236,3 +236,11 @@ __marimo__/
 !/dataset/val/labels/.gitkeep
 !/models/
 !/models/.gitkeep
+
+# RL training outputs (keep best/final models, skip bulky logs)
+runs/*/tensorboard/
+runs/*/*/checkpoints/
+runs/*/train_log.txt
+
+# Blender auto-backups
+*.blend1
