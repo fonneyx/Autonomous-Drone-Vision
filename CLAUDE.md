@@ -49,13 +49,14 @@ Key rule: **RL never controls motors directly.** ArduPilot keeps low-level stabi
 bounded velocity setpoints. A rule-based safety shield can always override RL.
 
 ## 4. Stages
-### Stage 1 — Underground world + live map (simulation)
+### Stage 1 — Underground world + live map (simulation) — DONE 2026-10-30
 Procedural cave/tunnel generator in MuJoCo, same drone + depth camera as the avoidance env, 2D occupancy
 map updated live, frontier detection, coverage metric, demo script with map window.
 
-### Stage 2 — Frontier exploration
-Explorer picks frontiers, pilot flies to waypoints (retrain the avoidance pilot with waypoint goals in caves).
-Compare RL pilot vs classical follow-the-gap pilot on the same caves and seeds.
+### Stage 2 — Frontier exploration — DONE 2026-10-30
+Explorer picks frontiers, pilot flies to waypoints, safety shield overrides the RL pilot near walls.
+RL vs classical compared on the same caves and seeds (see docs/progress.md). Open: retrain the RL pilot
+in caves with waypoint goals.
 
 ### Stage 3 — People marking + return home + scoring
 Person models in the caves, YOLO detection → map markers, A* return home, mission score.

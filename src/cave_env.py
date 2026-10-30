@@ -103,8 +103,9 @@ class CaveExploreEnv(DroneAvoidanceEnv):
     Observation (dict), same layout as DroneAvoidanceEnv so its pilot is reusable:
         depth: uint8 (1, 48, 64) depth image, 0 = touching, 255 = 10 m or more
         state: float32 (6,) [sin(heading error), cos(heading error), 0, goal distance,
-               forward speed, yaw rate]; with no goal set the heading error is 0
-               ("fly where you are pointing") and goal distance reads 0.5
+               forward speed, yaw rate]; heading error = nose angle minus goal bearing.
+               With no goal set it is 0 ("fly where you are pointing") and goal
+               distance reads 0.5
     Action: float32 (2,) in [-1, 1] -> [forward speed 0..4 m/s, yaw rate +/-90 deg/s]
     """
 
@@ -228,8 +229,10 @@ class CaveExploreEnv(DroneAvoidanceEnv):
         observation = super()._observation()
         heading_error, goal_distance = 0.0, 0.5 * GOAL_SCALE
         if self.goal is not None:
+            # Nose angle relative to the goal bearing (+ = turned left of the goal). Same
+            # sign as sin(yaw) in the forest course, where the goal bearing is always 0.
             dx, dy = self.goal - self.position[:2]
-            heading_error = math.atan2(dy, dx) - self.yaw
+            heading_error = self.yaw - math.atan2(dy, dx)
             goal_distance = math.hypot(dx, dy)
         state = observation["state"]
         state[0], state[1] = math.sin(heading_error), math.cos(heading_error)

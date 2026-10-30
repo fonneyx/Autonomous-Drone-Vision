@@ -23,12 +23,15 @@ def follow_the_gap(
     look_ahead: float = 6.0,
     straight_bias: float = 0.6,
     side_guard: float = 1.0,
+    target_angle: float = 0.0,
 ) -> np.ndarray:
     """Return the env action [speed, yaw rate] in [-1, 1] from a horizontal scan.
 
     angles: ray angle relative to the nose (rad, positive = left); ranges: horizontal
     distance per ray (m). Same order as CaveExploreEnv.scan(). Each ray's clearance is the shortest range among
     neighbours within the drone's width at that distance (obstacle inflation).
+    target_angle: direction to a waypoint relative to the nose (+ = left); the pilot
+    prefers gaps close to it. 0 = keep flying where the nose points.
     """
     ranges = np.minimum(np.asarray(ranges, dtype=np.float64), look_ahead)
     angles = np.asarray(angles, dtype=np.float64)
@@ -39,14 +42,18 @@ def follow_the_gap(
         half = int(math.ceil(math.atan2(drone_radius, max(distance, 0.3)) / spacing))
         clearance[index] = ranges[max(0, index - half) : index + half + 1].min()
 
-    score = clearance - straight_bias * np.abs(angles)
+    target_angle = math.atan2(math.sin(target_angle), math.cos(target_angle))
+    score = clearance - straight_bias * np.abs(angles - target_angle)
     best = int(np.argmax(score))
     centre = int(np.argmin(np.abs(angles)))
     ahead = clearance[max(0, centre - 2) : centre + 3].min()
 
-    if clearance[best] < stop_distance * 1.5:
-        # Dead end or boxed in: stop and turn on the spot (left, by convention)
-        speed, yaw_rate = 0.0, max_yaw_rate
+    if abs(target_angle) > abs(float(angles[0])):
+        # Waypoint outside the field of view: turn on the spot to face it first
+        speed, yaw_rate = 0.0, math.copysign(max_yaw_rate * 0.6, target_angle)
+    elif clearance[best] < stop_distance * 1.5:
+        # Dead end or boxed in: stop and turn on the spot, towards the waypoint (else left)
+        speed, yaw_rate = 0.0, math.copysign(max_yaw_rate, target_angle) if target_angle else max_yaw_rate
     else:
         yaw_rate = 1.5 * angles[best]
         # Side guard: walls closer than side_guard push the nose away from them. The

@@ -2,6 +2,8 @@
 
 Examples:
     python scripts/explore_cave.py                      # follow-the-gap pilot, 3D viewer + map
+    python scripts/explore_cave.py --explore            # frontier explorer picks where to fly
+    python scripts/explore_cave.py --explore --pilot rl # explorer + trained RL pilot
     python scripts/explore_cave.py --pilot rl           # trained avoidance pilot ("wander" mode)
     python scripts/explore_cave.py --pilot keys         # fly yourself: W/S speed, A/D turn
     python scripts/explore_cave.py --seed 7 --no-viewer # only the map window
@@ -10,6 +12,7 @@ Examples:
 
 Map colours: grey = unknown, white = free, black = wall, orange = frontier
 (edge of explored space), red = drone, blue = flown path, green = home.
+With --explore: magenta = planned path, magenta dot = waypoint, ring = target.
 """
 
 from __future__ import annotations
@@ -27,16 +30,25 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from src.baselines import follow_the_gap  # noqa: E402
 from src.cave_env import CaveExploreEnv  # noqa: E402
+from src.explorer import FrontierExplorer  # noqa: E402
+from src.safety import SafetyShield  # noqa: E402
 from src.sim_env import CONTROL_DT, MAX_SPEED, MAX_YAW_RATE  # noqa: E402
 
 MAP_SCALE = 3  # pixels per map cell
+PLAN_BGR = (200, 40, 200)
 
 
-def draw_map(env: CaveExploreEnv, info: dict) -> np.ndarray:
+def draw_map(env: CaveExploreEnv, info: dict, explorer: FrontierExplorer | None = None) -> np.ndarray:
     image = env.map.to_bgr(MAP_SCALE)
     points = [env.map.world_to_pixel(x, y, MAP_SCALE) for x, y in env.trail]
     if len(points) > 1:
         cv2.polylines(image, [np.array(points, dtype=np.int32)], False, (200, 120, 30), 1, cv2.LINE_AA)
+    if explorer is not None and explorer.path:
+        plan = [env.map.world_to_pixel(x, y, MAP_SCALE) for x, y in explorer.path]
+        cv2.polylines(image, [np.array(plan, dtype=np.int32)], False, PLAN_BGR, 1, cv2.LINE_AA)
+        cv2.circle(image, plan[-1], 7, PLAN_BGR, 2, cv2.LINE_AA)
+        if explorer.waypoint is not None:
+            cv2.circle(image, env.map.world_to_pixel(*explorer.waypoint, MAP_SCALE), 4, PLAN_BGR, -1, cv2.LINE_AA)
     cv2.circle(image, env.map.world_to_pixel(*env.layout.home_xy, MAP_SCALE), 6, (60, 180, 60), 2)
     x, y = env.position[:2]
     nose = (x + 0.8 * np.cos(env.yaw), y + 0.8 * np.sin(env.yaw))
@@ -50,11 +62,7 @@ def draw_map(env: CaveExploreEnv, info: dict) -> np.ndarray:
     return image
 
 
-def newest_avoidance_model() -> Path:
-    candidates = sorted((ROOT / "runs" / "avoidance").glob("*/best_model.zip"), key=lambda p: p.stat().st_mtime)
-    if not candidates:
-        raise FileNotFoundError("No trained avoidance pilot in runs/avoidance; use --pilot gap.")
-    return candidates[-1]
+DEFAULT_RL_PILOT = ROOT / "runs" / "avoidance" / "avoidance-2" / "best_model.zip"  # 99 % in the forest
 
 
 class KeyboardPilot:
@@ -79,7 +87,10 @@ class KeyboardPilot:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--pilot", choices=["gap", "rl", "keys"], default="gap")
-    parser.add_argument("--model", type=Path, help="RL pilot .zip (default: newest avoidance best_model).")
+    parser.add_argument("--explore", action="store_true", help="Frontier explorer gives the pilot waypoints.")
+    parser.add_argument("--time", type=float, default=150.0, help="Time limit per cave (s).")
+    parser.add_argument("--shield", action="store_true", help="Safety shield overrides the pilot near walls.")
+    parser.add_argument("--model", type=Path, default=DEFAULT_RL_PILOT, help="RL pilot .zip.")
     parser.add_argument("--seed", type=int, default=0, help="Cave seed (each episode adds 1).")
     parser.add_argument("--episodes", type=int, default=1)
     parser.add_argument("--headless", action="store_true", help="No windows; print scores only.")
@@ -94,17 +105,20 @@ def main() -> None:
     if args.pilot == "rl":
         from stable_baselines3 import PPO
 
-        model_path = args.model or newest_avoidance_model()
-        policy = PPO.load(model_path, device="cpu")
-        print(f"RL pilot: {model_path}")
+        policy = PPO.load(args.model, device="cpu")
+        print(f"RL pilot: {args.model}")
     keyboard = KeyboardPilot() if args.pilot == "keys" else None
 
     writer = None
     results = []
     for episode in range(args.episodes):
         seed = args.seed + episode
-        env = CaveExploreEnv(world_seed=seed, render_mode="rgb_array" if args.record else None)
+        env = CaveExploreEnv(
+            world_seed=seed, max_steps=round(args.time / CONTROL_DT), render_mode="rgb_array" if args.record else None
+        )
         obs, info = env.reset(seed=seed)
+        explorer = FrontierExplorer(env.map) if args.explore else None
+        shield = SafetyShield(MAX_SPEED, MAX_YAW_RATE) if args.shield else None
 
         viewer = None
         if not (args.headless or args.no_viewer):
@@ -120,20 +134,30 @@ def main() -> None:
         total_reward = 0.0
         for _ in range(env.max_steps):
             tick = time.perf_counter()
+            target_angle = 0.0
+            if explorer is not None:
+                env.goal = explorer.update(env.position[:2])
+                if explorer.done:
+                    break  # no reachable frontier left: the cave is explored
+                if env.goal is not None:
+                    dx, dy = env.goal - env.position[:2]
+                    target_angle = float(np.arctan2(dy, dx)) - env.yaw
+                obs = env._observation()  # refresh the goal part of the observation
             if keyboard is not None:
                 action = keyboard(key)
             elif policy is not None:
                 action, _ = policy.predict(obs, deterministic=True)
             else:
-                action = follow_the_gap(*env.scan(), MAX_SPEED, MAX_YAW_RATE)
+                action = follow_the_gap(*env.scan(), MAX_SPEED, MAX_YAW_RATE, target_angle=target_angle)
+            if shield is not None:
+                action = shield.filter(action, *env.scan(), target_angle=target_angle)
             obs, reward, terminated, truncated, info = env.step(action)
             total_reward += reward
 
             if args.record:
                 # 640x480 top-down view next to the map scaled to the same height
-                frame = np.hstack(
-                    [cv2.cvtColor(env.render(), cv2.COLOR_RGB2BGR), cv2.resize(draw_map(env, info), (480, 480))]
-                )
+                map_image = cv2.resize(draw_map(env, info, explorer), (480, 480))
+                frame = np.hstack([cv2.cvtColor(env.render(), cv2.COLOR_RGB2BGR), map_image])
                 if writer is None:
                     height, width = frame.shape[:2]
                     writer = cv2.VideoWriter(
@@ -141,7 +165,7 @@ def main() -> None:
                     )
                 writer.write(frame)
             if not args.headless:
-                cv2.imshow("Cave map (live)", draw_map(env, info))
+                cv2.imshow("Cave map (live)", draw_map(env, info, explorer))
                 key = cv2.waitKey(1)
                 if key == 27:  # Esc
                     terminated = True
@@ -153,15 +177,21 @@ def main() -> None:
             if terminated or truncated:
                 break
 
+        info["coverage"] = env.coverage()
+        info["time"] = env._step_count * CONTROL_DT
         results.append(info)
+        finished = " explored" if explorer is not None and explorer.done else ""
+        if shield is not None:
+            info["override_rate"] = shield.override_rate
+            finished += f"  shield {shield.override_rate * 100:.0f}%"
         print(
             f"cave {seed:3d}: coverage {info['coverage'] * 100:5.1f}%  "
             f"walls correct {env.wall_precision() * 100:5.1f}%  "
-            f"{'CRASH' if info['collision'] else 'ok   '}  time {env._step_count * CONTROL_DT:5.1f}s  "
-            f"reward {total_reward:6.1f}"
+            f"{'CRASH' if info['collision'] else 'ok   '}  time {info['time']:5.1f}s  "
+            f"reward {total_reward:6.1f}{finished}"
         )
         if args.save_map:
-            cv2.imwrite(str(args.save_map), draw_map(env, info))
+            cv2.imwrite(str(args.save_map), draw_map(env, info, explorer))
         if viewer is not None:
             viewer.close()
         if not args.headless and episode == args.episodes - 1 and not args.record:
@@ -176,7 +206,11 @@ def main() -> None:
     if len(results) > 1:
         crashes = np.mean([r["collision"] for r in results])
         coverage = np.mean([r["coverage"] for r in results])
-        print(f"\n{len(results)} caves: mean coverage {coverage * 100:.1f}%, crash rate {crashes * 100:.0f}%")
+        seconds = np.mean([r["time"] for r in results])
+        print(
+            f"\n{len(results)} caves: mean coverage {coverage * 100:.1f}%, crash rate {crashes * 100:.0f}%, "
+            f"mean time {seconds:.0f}s"
+        )
 
 
 if __name__ == "__main__":
