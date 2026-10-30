@@ -21,6 +21,7 @@ import mujoco
 import numpy as np
 from gymnasium import spaces
 
+from src.cave_people import choose_spots, index_people, people_xml, place_people
 from src.cave_world import TUNNEL_HEIGHT, CaveLayout, generate_cave
 from src.occupancy_map import OccupancyMap
 from src.sim_env import (
@@ -46,8 +47,11 @@ TIME_PENALTY = 0.005
 DONE_COVERAGE = 0.9  # episode ends once this share of the reachable cave is mapped
 
 
-def cave_xml(layout: CaveLayout) -> str:
-    """MuJoCo scene: floor, rock wall boxes, hidden ceiling and the drone with a headlamp."""
+def cave_xml(layout: CaveLayout, extra_assets: str = "", extra_bodies: str = "") -> str:
+    """MuJoCo scene: floor, rock wall boxes, hidden ceiling and the drone with a headlamp.
+
+    extra_assets / extra_bodies are inserted into <asset> / <worldbody> (people).
+    """
     size_x, size_y = layout.size_m
     half_z = TUNNEL_HEIGHT / 2.0
     walls = "".join(
@@ -76,6 +80,7 @@ def cave_xml(layout: CaveLayout) -> str:
              rgb1=".20 .19 .17" markrgb=".32 .30 .27" width="512" height="512"/>
     <material name="rock" texture="rock_tex" texuniform="true" texrepeat="1 1"/>
     <material name="gravel" texture="gravel_tex" texrepeat="{size_x / 2:.0f} {size_y / 2:.0f}"/>
+    {extra_assets}
   </asset>
   <default>
     <geom contype="2" conaffinity="1" condim="1"/>
@@ -92,6 +97,7 @@ def cave_xml(layout: CaveLayout) -> str:
     <geom name="home_pad" class="visual" type="cylinder" pos="{home_x} {home_y} 0.01" size="0.6 0.005"
           rgba=".1 .8 .3 1"/>
     {walls}
+    {extra_bodies}
 {drone_body}
   </worldbody>{actuators}</mujoco>
 """
@@ -120,9 +126,16 @@ class CaveExploreEnv(DroneAvoidanceEnv):
         map_resolution: float = 0.25,
         render_mode: str | None = None,
         world_seed: int | None = None,
+        people: int = 0,
+        done_coverage: float | None = DONE_COVERAGE,
     ):
+        """people: how many people to rescue are placed in the cave each reset (Stage 3).
+        done_coverage: end the episode at this coverage; None = never (a mission ends at home)."""
         gym.Env.__init__(self)
         self.cave_size = cave_size
+        self.people = people
+        self.done_coverage = done_coverage
+        self.people_xy = np.zeros((0, 2))
         self.new_cave_each_reset = new_cave_each_reset
         self.max_steps = max_steps
         self.depth_noise = depth_noise
@@ -158,8 +171,10 @@ class CaveExploreEnv(DroneAvoidanceEnv):
     # ------------------------------------------------------------------- world
     def _build_world(self) -> None:
         self.layout = generate_cave(self._world_rng, self.cave_size)
-        self.model = mujoco.MjModel.from_xml_string(cave_xml(self.layout))
+        extra = people_xml(self.people, self._world_rng) if self.people else ("", "")
+        self.model = mujoco.MjModel.from_xml_string(cave_xml(self.layout, *extra))
         self.data = mujoco.MjData(self.model)
+        self._person_slots = index_people(self.model, self.people)
         self._drone_body = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "drone")
         self._hull_geom = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "hull")
         self._floor_geom = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "floor")
@@ -177,6 +192,7 @@ class CaveExploreEnv(DroneAvoidanceEnv):
         ly = np.floor(cy / self.layout.cell_size).astype(int)
         self._true_free = reachable[lx, ly]
         self._true_rock = ~self.layout.free[lx, ly]
+        self._cell_centres = (cx, cy)
 
     # ----------------------------------------------------------------- sensing
     def scan(self) -> tuple[np.ndarray, np.ndarray]:
@@ -212,9 +228,13 @@ class CaveExploreEnv(DroneAvoidanceEnv):
     def wall_precision(self, tolerance_cells: int = 1) -> float:
         """Share of mapped wall cells within tolerance_cells of real rock (map accuracy, 0..1).
 
-        A one-cell (0.25 m) tolerance is the usual allowance for range noise.
+        A one-cell (0.25 m) tolerance is the usual allowance for range noise. People are
+        real obstacles too, so cells where a person stands count as correct.
         """
-        rock = self._true_rock
+        rock = self._true_rock.copy()
+        cx, cy = self._cell_centres
+        for px, py in self.people_xy:
+            rock |= np.hypot(cx - px, cy - py) < 0.5
         padded = np.pad(rock, tolerance_cells, constant_values=True)
         near_rock = np.zeros_like(rock)
         nx, ny = rock.shape
@@ -246,7 +266,7 @@ class CaveExploreEnv(DroneAvoidanceEnv):
         reward = AREA_REWARD * new_area - TIME_PENALTY
         if collided:
             reward += COLLISION_PENALTY
-        finished = coverage >= DONE_COVERAGE
+        finished = self.done_coverage is not None and coverage >= self.done_coverage
         info = {
             "is_success": bool(finished and not collided),
             "collision": collided,
@@ -267,6 +287,9 @@ class CaveExploreEnv(DroneAvoidanceEnv):
         else:
             self.map = OccupancyMap(self.layout.size_m, self.map_resolution)
         mujoco.mj_resetData(self.model, self.data)
+        if self.people:
+            self.people_xy = choose_spots(self.layout, self.people, self.np_random)
+            place_people(self.data, self.model, self._person_slots, self.people_xy, self.np_random)
         home_x, home_y = self.layout.home_xy
         self.data.qpos[:4] = [home_x, home_y, FLIGHT_ALTITUDE, self.np_random.uniform(-0.3, 0.3)]
         mujoco.mj_forward(self.model, self.data)

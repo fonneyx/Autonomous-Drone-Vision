@@ -24,6 +24,7 @@ def follow_the_gap(
     straight_bias: float = 0.6,
     side_guard: float = 1.0,
     target_angle: float = 0.0,
+    target_distance: float | None = None,
 ) -> np.ndarray:
     """Return the env action [speed, yaw rate] in [-1, 1] from a horizontal scan.
 
@@ -32,6 +33,9 @@ def follow_the_gap(
     neighbours within the drone's width at that distance (obstacle inflation).
     target_angle: direction to a waypoint relative to the nose (+ = left); the pilot
     prefers gaps close to it. 0 = keep flying where the nose points.
+    target_distance: distance to that waypoint (m). If the direct line to it is clear,
+    the pilot heads straight for it instead of for the widest gap (otherwise a wide
+    opening elsewhere can lure it away from a narrower but free path, back and forth).
     """
     ranges = np.minimum(np.asarray(ranges, dtype=np.float64), look_ahead)
     angles = np.asarray(angles, dtype=np.float64)
@@ -45,14 +49,20 @@ def follow_the_gap(
     target_angle = math.atan2(math.sin(target_angle), math.cos(target_angle))
     score = clearance - straight_bias * np.abs(angles - target_angle)
     best = int(np.argmax(score))
+    direct_clear = False
+    if target_distance is not None and abs(target_angle) <= abs(float(angles[0])):
+        direct = int(np.argmin(np.abs(angles - target_angle)))
+        if clearance[direct] >= min(target_distance, look_ahead) or clearance[direct] >= 2.0:
+            best, direct_clear = direct, True
     centre = int(np.argmin(np.abs(angles)))
     ahead = clearance[max(0, centre - 2) : centre + 3].min()
 
     if abs(target_angle) > abs(float(angles[0])):
         # Waypoint outside the field of view: turn on the spot to face it first
         speed, yaw_rate = 0.0, math.copysign(max_yaw_rate * 0.6, target_angle)
-    elif clearance[best] < stop_distance * 1.5:
-        # Dead end or boxed in: stop and turn on the spot, towards the waypoint (else left)
+    elif clearance[best] < stop_distance * 1.5 and not direct_clear:
+        # Dead end or boxed in (and no clear line to a nearby waypoint): stop and turn on
+        # the spot, towards the waypoint (else left)
         speed, yaw_rate = 0.0, math.copysign(max_yaw_rate, target_angle) if target_angle else max_yaw_rate
     else:
         yaw_rate = 1.5 * angles[best]
@@ -63,6 +73,8 @@ def follow_the_gap(
         yaw_rate = float(np.clip(yaw_rate, -max_yaw_rate, max_yaw_rate))
         # Slow for obstacles ahead, for anything close by and for sharp turns
         speed = cruise_speed * float(np.clip((ahead - stop_distance) / 2.0, 0.0, 1.0))
+        if direct_clear:
+            speed = max(speed, 0.3)  # creep along a clear line to a close waypoint
         speed *= 1.0 - 0.7 * float(closeness.max())
         speed *= max(0.2, 1.0 - abs(yaw_rate) / max_yaw_rate)
     return np.array([speed / max_speed * 2.0 - 1.0, yaw_rate / max_yaw_rate], dtype=np.float32)

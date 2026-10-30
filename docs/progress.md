@@ -1,5 +1,56 @@
 # Progress log
 
+## 2026-10-30 — Stage 3: search-and-rescue mission (find people, mark them, return home)
+
+### What was built
+| File | What it does |
+|---|---|
+| `src/cave_people.py` | People in caves from the Blender meshes (standing / walking / waving, random size and clothes). Capsule proxy is seen by the depth camera and collides, so people are obstacles too. Placed in open spots ≥ 8 m (path) from home and ≥ 4 m apart. |
+| `src/rescue.py` | Two detectors with the same output (bearing + image rows): `SimulatedPersonDetector` (field of view, 8 m range, occlusion by rock via ray test, detection chance falling from 100 % at 4 m to 40 % at 8 m, 1.5° bearing noise, 1 % false alarms) for fast benchmarks, and `YoloPersonDetector` (renders the drone camera, runs the sim-vision YOLO model). `locate()` puts a detection on the map using the depth image (30th percentile of depth in the box + body radius). `PersonMarkers` merges sightings within 1.5 m and confirms a marker after 3 sightings. `score_markers()` = found / error / false markers. |
+| `src/rescue_mission.py` | `RescueMission`: explorer → detection every 0.3 s → pilot → shield → battery check. Returns home when *time left < 1.3 × (path home / 1.0 m/s) + 15 s*, or when the cave is explored. Soft keep-out zone (1 m) around every person sighting; within 2 m of a person the shield takes over and caps speed at 0.5 m/s. |
+| `src/explorer.py` | Return home (`go_home`, `distance_home` from every plan), soft keep-out zones (cost × 6 in the path planner: avoided when possible, passable when the only way), keep-out frontiers only as last resort, no shortcuts through keep-out zones. |
+| `src/baselines.py` | follow-the-gap: with `target_distance`, fly straight at a waypoint whose direct line is clear (was lured away by wider gaps, back and forth); not "boxed in" when the line to a close waypoint is clear. Without `target_distance` behaviour is unchanged (Stage 2 numbers stay valid). |
+| `src/safety.py` | `near_person` rule: shield always takes over near people, speed cap 0.5 m/s. |
+| `src/map_view.py` | Shared map drawing (moved out of `explore_cave.py`), now with person markers and true positions. |
+| `scripts/rescue_mission.py` | Demo/benchmark: `--detector sim|yolo`, `--pilot gap|rl`, `--shield`, `--battery`, `--people`, video recording, YOLO camera window. |
+| `tests/test_rescue.py` | 10 tests: placement, detection accuracy, field of view, occlusion by rock, marker confirmation, scoring, soft keep-out, short mission returns home on battery, full mission. 40 tests total. |
+
+### Results (same 10 caves, seeds 0–9, 3 people each, battery 240 s)
+| Setup | People found | Marker error | False markers | Home | Crashes | Coverage | Mission time |
+|---|---|---|---|---|---|---|---|
+| **Classical pilot + simulated detector** | **28 / 30 (93 %)** | 0.05 m | 0 | **10 / 10** | **0** | 84.7 % | 204 s |
+| **Classical pilot + YOLO** | **26 / 30 (87 %)** | 0.06 m | 11 | **10 / 10** | **0** | 78.2 % | 205 s |
+| RL pilot (forest-trained) + shield + simulated detector | 25 / 30 (83 %) | 0.05 m | 2 | 3 / 10 | 3 | 79.3 % | 184 s |
+
+Notes for the thesis:
+- The full pipeline works with the real YOLO detector: 87 % of people found, markers within 6 cm, every drone home, no crash. YOLO is only 2/30 epochs trained and never saw a cave; its weakness is false alarms on rock (11 false markers, 5 of them in one cave). Next: finish YOLO training with cave images; consider 4 confirmations instead of 3.
+- The simulated detector predicts YOLO's detection rate well (93 % vs 87 %), so it is a fair, fast stand-in for large benchmarks.
+- Missed people: mostly in areas the drone could not reach or did not have time for (caves 6 and 9).
+- **Safety trade-off (honest limitation):** in cave 6 a person stands in a 4 m wide passage. With the person mapped as an obstacle and 0.5 m clearance, the passage is too narrow to pass safely, so the drone does not explore beyond (coverage 40 %). This is the intended behaviour: it never squeezes past a person.
+- The forest-trained RL pilot is not fit for rescue missions: it flies close to people (thin obstacles) and clipped them when turning (camera cannot see the flanks). The person rule in the shield helps, but the shield then flies 23–55 % of the time and the RL pilot still crashed in 3 caves and ran out of battery in 4. Conclusion: classical pilot for the mission; RL needs training in caves with people and waypoints.
+- Battery rule: every classical mission landed with 15–43 s of battery left (240 s battery).
+
+Bugs found (for "Implementation challenges"):
+- Battery check fired at take-off because the distance home was still "unknown" (infinite).
+- Using average exploring speed to estimate the time home made the drone return far too early (exploring includes turning on the spot); replaced by an assumed return speed.
+- The drone flew right next to a detected person and clipped them while turning → keep-out zones around people. Hard zones blocked whole tunnels → soft zones (cost).
+- The classical pilot oscillated between a wide gap and a clear but narrower path to the waypoint, and declared itself boxed in with a clear 1 m line to the waypoint → direct-line rule.
+- YOLO found people only in the first cave: the camera renderer was matched to the cave by `id(model)`, and Python reused the id of the freed model for the next cave → compare the model object itself.
+
+Images: `docs/images/stage3_cave0_map.png` (final map with 3 people marked), `docs/images/stage3_yolo_camera.png` (YOLO box in the drone camera), video `docs/images/stage3_cave0_rescue.mp4`.
+
+### How to run
+```
+python scripts/rescue_mission.py                      # classical pilot, simulated detector
+python scripts/rescue_mission.py --detector yolo      # real YOLO + camera window
+python scripts/rescue_mission.py --headless --episodes 10
+```
+
+### Next steps
+1. Finish YOLO training (28 epochs left, ~55 min) and add rendered cave images with people to the dataset → fewer false alarms.
+2. (Optional, ~1 h) Train the RL pilot in caves with waypoints and people.
+3. Stage 4: ArduPilot SITL — run the same mission code over MAVLink.
+
 ## 2026-10-30 — Stage 2: frontier exploration + safety shield
 
 ### What was built

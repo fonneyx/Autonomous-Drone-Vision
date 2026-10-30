@@ -31,36 +31,9 @@ if str(ROOT) not in sys.path:
 from src.baselines import follow_the_gap  # noqa: E402
 from src.cave_env import CaveExploreEnv  # noqa: E402
 from src.explorer import FrontierExplorer  # noqa: E402
+from src.map_view import draw_map  # noqa: E402
 from src.safety import SafetyShield  # noqa: E402
 from src.sim_env import CONTROL_DT, MAX_SPEED, MAX_YAW_RATE  # noqa: E402
-
-MAP_SCALE = 3  # pixels per map cell
-PLAN_BGR = (200, 40, 200)
-
-
-def draw_map(env: CaveExploreEnv, info: dict, explorer: FrontierExplorer | None = None) -> np.ndarray:
-    image = env.map.to_bgr(MAP_SCALE)
-    points = [env.map.world_to_pixel(x, y, MAP_SCALE) for x, y in env.trail]
-    if len(points) > 1:
-        cv2.polylines(image, [np.array(points, dtype=np.int32)], False, (200, 120, 30), 1, cv2.LINE_AA)
-    if explorer is not None and explorer.path:
-        plan = [env.map.world_to_pixel(x, y, MAP_SCALE) for x, y in explorer.path]
-        cv2.polylines(image, [np.array(plan, dtype=np.int32)], False, PLAN_BGR, 1, cv2.LINE_AA)
-        cv2.circle(image, plan[-1], 7, PLAN_BGR, 2, cv2.LINE_AA)
-        if explorer.waypoint is not None:
-            cv2.circle(image, env.map.world_to_pixel(*explorer.waypoint, MAP_SCALE), 4, PLAN_BGR, -1, cv2.LINE_AA)
-    cv2.circle(image, env.map.world_to_pixel(*env.layout.home_xy, MAP_SCALE), 6, (60, 180, 60), 2)
-    x, y = env.position[:2]
-    nose = (x + 0.8 * np.cos(env.yaw), y + 0.8 * np.sin(env.yaw))
-    cv2.arrowedLine(
-        image, env.map.world_to_pixel(x, y, MAP_SCALE), env.map.world_to_pixel(*nose, MAP_SCALE),
-        (30, 30, 230), 2, cv2.LINE_AA, tipLength=0.5,
-    )
-    text = f"coverage {info.get('coverage', 0.0) * 100:4.1f}%   t {env._step_count * CONTROL_DT:5.1f}s"
-    cv2.rectangle(image, (0, 0), (250, 28), (30, 30, 30), -1)
-    cv2.putText(image, text, (8, 19), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-    return image
-
 
 DEFAULT_RL_PILOT = ROOT / "runs" / "avoidance" / "avoidance-2" / "best_model.zip"  # 99 % in the forest
 

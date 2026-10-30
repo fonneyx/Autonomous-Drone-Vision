@@ -58,8 +58,10 @@ Explorer picks frontiers, pilot flies to waypoints, safety shield overrides the 
 RL vs classical compared on the same caves and seeds (see docs/progress.md). Open: retrain the RL pilot
 in caves with waypoint goals.
 
-### Stage 3 — People marking + return home + scoring
-Person models in the caves, YOLO detection → map markers, A* return home, mission score.
+### Stage 3 — People marking + return home + scoring — DONE 2026-10-30
+Person models in the caves, YOLO detection → map markers, battery-aware return home, mission score,
+soft keep-out zones around people. Classical pilot + YOLO: 87 % found, 10/10 home, 0 crashes (docs/progress.md).
+Open: YOLO false alarms on rock (finish training with cave images).
 
 ### Stage 4 — Realistic validation
 ArduPilot SITL (free) with the same MAVLink interface as the real drone. Gazebo only if time is left

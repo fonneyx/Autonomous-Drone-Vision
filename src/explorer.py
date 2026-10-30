@@ -88,19 +88,24 @@ def cluster_sizes(mask: np.ndarray) -> np.ndarray:
     return sizes
 
 
-def wavefront(passable: np.ndarray, start: tuple[int, int], max_iterations: int = 2000) -> np.ndarray:
-    """Path distance (in cells) from start to every passable cell; inf where unreachable.
+def wavefront(
+    passable: np.ndarray, start: tuple[int, int], cost: np.ndarray | None = None, max_iterations: int = 4000
+) -> np.ndarray:
+    """Path cost (in cells) from start to every passable cell; inf where unreachable.
 
     Vectorised grid Dijkstra with 8-connected moves (diagonals cost sqrt 2). Each
     sweep relaxes every cell from its neighbours; it stops when nothing changes.
+    cost: optional per-cell multiplier for entering a cell (1 = normal), used to make
+    paths avoid areas without forbidding them.
     """
     distance = np.full(passable.shape, np.inf)
     distance[start] = 0.0
+    weight = np.ones(passable.shape) if cost is None else cost
     for _ in range(max_iterations):
         best = distance.copy()
         for dx, dy in _NEIGHBOURS:
             step = math.sqrt(2.0) if dx and dy else 1.0
-            np.minimum(best, _shift(distance, dx, dy, np.inf) + step, out=best)
+            np.minimum(best, _shift(distance, dx, dy, np.inf) + step * weight, out=best)
         best[~passable] = np.inf
         best[start] = 0.0
         if np.array_equal(best, distance):
@@ -124,6 +129,7 @@ class FrontierExplorer:
         reached_distance: float = 1.0,
         give_up_after: int = 200,
         look_around_steps: int = 75,
+        home: tuple[float, float] | None = None,
     ):
         """Distances in metres.
 
@@ -134,6 +140,8 @@ class FrontierExplorer:
         otherwise always win and the drone would never move). give_up_after: control steps
         before an unreached target is blacklisted. look_around_steps: control steps of
         turning on the spot before giving up (75 steps at the pilot's turn rate is ~360 deg).
+        home: world (x, y) of the take-off point; every plan then also measures the flight
+        distance home (`distance_home`), and go_home() switches from exploring to returning.
         """
         self.map = grid
         r = grid.resolution
@@ -152,22 +160,35 @@ class FrontierExplorer:
         self.waypoint: np.ndarray | None = None
         self.done = False  # no reachable frontier left: exploration finished
         self.blacklist = np.zeros(grid.shape, dtype=bool)
+        # Soft keep-out zones (e.g. around people): paths avoid them when any other way
+        # exists, and pass through only when they block the only passage
+        self.keep_out = np.zeros(grid.shape, dtype=bool)
+        self.keep_out_cost = 6.0
+        self.home = None if home is None else np.asarray(home, dtype=np.float64)
+        self.distance_home = math.inf  # path length home (m) from the latest plan
+        self.returning = False  # True after go_home(): plan to home instead of frontiers
         self._safe: np.ndarray | None = None  # safe grid from the latest plan
         self._steps_since_plan = replan_every
         self._steps_on_target = 0
         self._look_around = 0  # steps spent turning on the spot since the last target
+        self._last_xy: np.ndarray | None = None
 
     # ------------------------------------------------------------------ planning
     def safe_mask(self) -> np.ndarray:
         """Known-free cells with at least `clearance` to the nearest mapped wall."""
         return self.map.free_mask() & ~dilate(self.map.occupied_mask(), self.clearance_cells)
 
+    def add_keep_out(self, xy: np.ndarray, radius: float) -> None:
+        """Avoid the disk of `radius` metres around world point xy (soft: see keep_out_cost)."""
+        cx, cy = self.map.cell_centres()
+        self.keep_out |= np.hypot(cx - xy[0], cy - xy[1]) < radius
+
     def _start_cell(self, xy: np.ndarray, safe: np.ndarray) -> tuple[int, int] | None:
-        """Drone cell, or the nearest safe cell within 1 m if the drone hugs a wall."""
+        """Drone cell, or the nearest safe cell within 2 m if the drone hugs a wall or keep-out zone."""
         ix, iy = (int(v) for v in self.map.world_to_cell(xy[0], xy[1]))
         if 0 <= ix < safe.shape[0] and 0 <= iy < safe.shape[1] and safe[ix, iy]:
             return ix, iy
-        reach = round(1.0 / self.map.resolution)
+        reach = round(2.0 / self.map.resolution)
         x0, y0 = max(0, ix - reach), max(0, iy - reach)
         window = safe[x0 : ix + reach + 1, y0 : iy + reach + 1]
         cells = np.argwhere(window)
@@ -192,11 +213,22 @@ class FrontierExplorer:
             return
         passable = safe.copy()
         passable[start] = True
-        distance = wavefront(passable, start)
+        distance = wavefront(passable, start, np.where(self.keep_out, self.keep_out_cost, 1.0))
+        if self.home is not None:
+            home_cell = self._nearest_reachable(distance, self.home)
+            self.distance_home = math.inf if home_cell is None else distance[home_cell] * self.map.resolution
+            if self.returning:
+                if home_cell is not None:
+                    self.target = home_cell
+                    self.path = self._trace_path(distance, home_cell) + [tuple(self.home)]
+                return
 
         # Targets: reachable safe cells next to a wide-enough frontier, not blacklisted
         width = max_filter(self.frontier_widths(), self.clearance_cells + 1)
         candidates = (width > 0) & np.isfinite(distance) & ~self.blacklist
+        # Frontiers inside a keep-out zone (e.g. the blind spot behind a person) only as a last resort
+        if (candidates & ~self.keep_out).any():
+            candidates &= ~self.keep_out
         if (candidates & (distance >= self.min_target_cells)).any():
             candidates &= distance >= self.min_target_cells
         if not candidates.any():
@@ -216,6 +248,33 @@ class FrontierExplorer:
         self.target = target
         self.path = self._trace_path(distance, target)
         self.done = False
+
+    def _nearest_reachable(self, distance: np.ndarray, xy: np.ndarray) -> tuple[int, int] | None:
+        """Reachable cell closest (straight line) to world point xy, within 1.5 m."""
+        reachable = np.argwhere(np.isfinite(distance))
+        if len(reachable) == 0:
+            return None
+        cx, cy = self.map.world_to_cell(xy[0], xy[1])
+        offsets = ((reachable - [int(cx), int(cy)]) ** 2).sum(1)
+        best = int(np.argmin(offsets))
+        if math.sqrt(offsets[best]) * self.map.resolution > 1.5:
+            return None
+        return int(reachable[best][0]), int(reachable[best][1])
+
+    def go_home(self) -> None:
+        """Stop exploring and fly back to `home` (battery low or cave explored)."""
+        if self.home is None:
+            raise ValueError("FrontierExplorer was created without a home position.")
+        self.returning = True
+        self.done = False
+        self.path = []
+        self._steps_since_plan = self.replan_every
+
+    @property
+    def at_home(self) -> bool:
+        return self.returning and bool(self.path) and self._last_xy is not None and (
+            np.linalg.norm(self._last_xy - self.home) < self.reached_distance
+        )
 
     def _trace_path(self, distance: np.ndarray, target: tuple[int, int]) -> list[tuple[float, float]]:
         """Follow the distance field downhill from target to the drone; return world points."""
@@ -253,6 +312,13 @@ class FrontierExplorer:
         nearest = int(np.argmin(np.linalg.norm(points - xy, axis=1)))
         ahead = points[nearest:]
         safe = self._safe if self._safe is not None else self.safe_mask()
+        if self.keep_out.any():
+            # Shortcuts must not cut through a keep-out zone the path itself goes around
+            on_path = np.zeros_like(safe)
+            px, py = self.map.world_to_cell(points[:, 0], points[:, 1])
+            inside = (px >= 0) & (px < safe.shape[0]) & (py >= 0) & (py < safe.shape[1])
+            on_path[px[inside], py[inside]] = True
+            safe = safe & ~(self.keep_out & ~dilate(on_path, 1))
         waypoint = ahead[0]
         for point in ahead[1:]:
             if np.linalg.norm(point - xy) > self.lookahead:
@@ -276,10 +342,11 @@ class FrontierExplorer:
     def update(self, xy: np.ndarray) -> np.ndarray | None:
         """Call every control step with the drone (x, y). Returns the waypoint or None when done."""
         xy = np.asarray(xy, dtype=np.float64)[:2]
+        self._last_xy = xy
         self._steps_since_plan += 1
         self._steps_on_target += 1
         reached = bool(self.path) and np.linalg.norm(np.asarray(self.path[-1]) - xy) < self.reached_distance
-        if reached or self._steps_on_target > self.give_up_after:
+        if not self.returning and (reached or self._steps_on_target > self.give_up_after):
             self._retire_target()
             self._steps_on_target = 0
         if self._steps_since_plan >= self.replan_every or not self.path:
