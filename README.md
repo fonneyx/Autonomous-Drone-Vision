@@ -1,13 +1,14 @@
 # Autonomous Drone Vision
 
-Teach a drone to fly through obstacles, entirely in simulation and on a laptop.
+Teach a drone to find people, vehicles and drones and to fly through obstacles,
+entirely in simulation and on a laptop.
 
 The project has two layers, matching how real autonomous drones work:
 
 | Layer | Question it answers | How |
 |---|---|---|
-| **Avoidance (main)** | "Is there free space ahead, and how far is the nearest thing?" | A depth camera feeds an RL policy (PPO) that outputs speed and turn commands. Trained in the MuJoCo obstacle course in `src/sim_env.py`. |
-| **Recognition (YOLO)** | "What is that object?" (drone, car, person) | YOLOv11s detector in `src/detector.py`. Useful for giving moving objects extra room, or for mission targets. |
+| **Avoidance** | "Is there free space ahead, and how far is the nearest thing?" | A depth camera feeds an RL policy (PPO) that outputs speed and turn commands. Trained in the MuJoCo obstacle course in `src/sim_env.py`. |
+| **Recognition (YOLO)** | "What is that object, and where is my target?" (person, vehicle, drone) | YOLOv11s trained on images rendered by the simulator plus real photos. The target's box goes to the pilot (Part 3). |
 
 Obstacle avoidance is built on depth, not YOLO, because YOLO only sees the
 classes it was trained on. A tree, wall, pole or branch that is not in the class
@@ -58,7 +59,7 @@ A 3D window opens with the drone, plus a small window showing its depth camera
 ### 3. Train
 
 ```powershell
-python scripts\train_avoidance.py
+python scripts\train_pilot.py --task avoidance
 ```
 
 - Default 3 million steps, about 1 hour on a 6-core laptop CPU. No GPU needed.
@@ -67,7 +68,7 @@ python scripts\train_avoidance.py
 - Results go to `runs\avoidance\avoidance\`: `best_model.zip` (best evaluation
   score) and `final_model.zip`.
 - To keep training a saved model:
-  `python scripts\train_avoidance.py --resume runs\avoidance\avoidance\final_model.zip --timesteps 2000000`
+  `python scripts\train_pilot.py --task avoidance --resume runs\avoidance\avoidance\final_model.zip --timesteps 2000000`
 
 Watch the learning curves live in another terminal:
 
@@ -166,6 +167,65 @@ Label them and add them to the training set to improve the model.
 Each image needs a same-named `.txt` label file. Each line contains
 `class_id x_center y_center width height`, with coordinates normalized to
 0–1. The order of `names` in `data.yaml` must match the class IDs.
+
+## Part 3: Target mission (find a person, vehicle or drone)
+
+The drone gets a mission, for example "find the person", in a course that also
+holds decoys (the other two object types) and obstacles. YOLO looks at the
+drone's colour camera; the target's box plus the depth camera go to the pilot,
+which searches, homes in and stops within 2 m of the target.
+
+### 1. 3D models (already built)
+
+People (standing, walking, waving), vehicles (sedan, SUV, van, pickup) and
+drones (camera quad, hexacopter, FPV racer) live in `assets\sim_models\`. They
+were made in Blender by `scripts\blender\build_sim_models.py`; the editable
+scene is `assets\sim_models\sim_models.blend`. To change or add models, edit
+the script and run it in Blender (Scripting tab > Open > Run Script). In the
+simulator every object gets random colours, sizes and orientations.
+
+### 2. Make the vision dataset (about 20 minutes)
+
+```powershell
+python scripts\make_sim_dataset.py
+```
+
+It renders 3,400 random scenes from the drone's camera into
+`..\SimVision_Dataset`. Labels come straight from the simulator, so no hand
+labelling is needed. It also mixes in 750 real drone photos and 750 real
+vehicle photos from the Roboflow datasets, so the model also works on real
+cameras. A Roboflow person dataset can be added the same way
+(`REAL_SOURCES` in the script).
+
+### 3. Train the vision model (GPU)
+
+```powershell
+python scripts\train_local.py --data ..\SimVision_Dataset\data.yaml --epochs 30 --name sim-vision
+```
+
+The result is `runs\train\sim-vision\weights\best.pt`.
+
+### 4. Train the mission pilot (CPU, about 45 minutes)
+
+```powershell
+python scripts\train_pilot.py --task mission
+```
+
+During training the pilot uses a fast simulated detector (the true box of the
+target, with YOLO-like misses and jitter), so training needs no rendering. The
+two trainings are independent and can run at the same time.
+
+### 5. Watch it fly with YOLO in the loop
+
+```powershell
+python scripts\fly_mission.py                           # random target each flight
+python scripts\fly_mission.py --target person           # always find a person
+python scripts\fly_mission.py --headless --episodes 50  # mission success + detection accuracy
+python scripts\fly_mission.py --record mission.mp4      # save the drone-camera view
+```
+
+The "Drone camera" window shows YOLO's boxes (green = target), the distance to
+the target, the speed and the depth image. The 3D window follows the drone.
 
 ## Safety note
 

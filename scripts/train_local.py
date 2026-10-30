@@ -41,6 +41,8 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, help="Override the configured epoch count.")
     parser.add_argument("--batch", type=int, help="Override the configured batch size.")
     parser.add_argument("--device", help="Override device, e.g. '0' or 'cpu'.")
+    parser.add_argument("--name", default="drone-vision", help="Run folder name under runs/train.")
+    parser.add_argument("--workers", type=int, default=8, help="Data-loading processes.")
     parser.add_argument(
         "--master", 
         action="store_true",
@@ -126,7 +128,8 @@ def main() -> None:
         if args.device is not None
         else (None if training["device"] == "auto" else training["device"]),
         project=str(ROOT / training["project"]),
-        name="drone-vision",
+        name=args.name,
+        workers=args.workers,
         freeze=10,                  # Freeze first 10 layers for transfer learning
         lr0=0.001,                  # Lower learning rate for stable convergence
         exist_ok=False,             # New run folder each time (drone-vision-2, -3, ...)

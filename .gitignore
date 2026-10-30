@@ -238,6 +238,9 @@ __marimo__/
 !/models/.gitkeep
 
 # RL training outputs (keep best/final models, skip bulky logs)
-runs/avoidance/tensorboard/
-runs/avoidance/*/checkpoints/
-runs/avoidance/train_log.txt
+runs/*/tensorboard/
+runs/*/*/checkpoints/
+runs/*/train_log.txt
+
+# Blender auto-backups
+*.blend1
