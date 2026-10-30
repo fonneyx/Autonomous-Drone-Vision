@@ -45,7 +45,7 @@ the RL pilot only sends bounded velocity commands, and a rule-based safety shiel
 |---|---|
 | MuJoCo simulator with depth camera + RL obstacle-avoidance pilot (PPO) | ✅ done — 99 % success at 40 obstacles |
 | Classical pilot (follow-the-gap) + safety shield | ✅ done |
-| Webcam prototype: tracking + re-ID, gestures, voice, arbiter | 🔄 in progress |
+| Webcam prototype: tracking + re-ID, gestures, voice, arbiter | ✅ done — live-tested on webcam + mic |
 | Follow-me in simulation (moving operator, wind, noise, latency) | ⏳ next |
 | ArduPilot SITL validation | ⏳ |
 | Real drone build and tests | ⏳ — see [docs/hardware.md](docs/hardware.md) (~$300 budget) |
@@ -57,9 +57,9 @@ Progress and results are logged in [docs/progress.md](docs/progress.md).
 ```
 config/           settings (YOLO model, thresholds, training)
 src/
-  perception/     YOLO detector, (next) person tracking, re-ID, gestures
-  voice/          (next) voice commands
-  control/        classical pilot, safety shield, (next) arbiter + follow controller
+  perception/     person tracking (YOLO11-pose), re-ID of the operator, MediaPipe gestures, YOLO detector
+  voice/          offline voice commands (Vosk)
+  control/        command arbiter, follow controller, classical pilot, safety shield
   sim/            MuJoCo worlds — obstacle course for the RL pilot
   hardware/       (later) MAVLink link to ArduPilot
 scripts/
@@ -93,6 +93,7 @@ python scripts/tools/check_gpu.py
 ## Quick start
 
 ```bash
+python scripts/demo/webcam_followme.py                      # follow-me prototype on your webcam + microphone
 python scripts/demo/fly_avoidance.py                        # watch the RL pilot fly the obstacle course
 python scripts/demo/fly_avoidance.py --headless --episodes 100   # success-rate test
 python scripts/train/train_pilot.py --timesteps 200000      # short RL training run
