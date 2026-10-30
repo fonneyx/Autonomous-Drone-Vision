@@ -1,0 +1,33 @@
+# This project is intentionally locked to YOLOv11s only.
+model: models/yolo11s.pt
+
+detection:
+  # The inference threshold is intentionally lower so uncertain detections can
+  # be collected; only detections above confidence_threshold are reported.
+  inference_threshold: 0.10
+  confidence_threshold: 0.35
+  iou_threshold: 0.45
+  image_size: 640
+  device: auto
+
+output:
+  directory: runs/detect
+  save: true
+  display: true
+
+data_collector:
+  enabled: true
+  directory: dataset/collected/images
+  minimum_confidence: 0.10
+
+controller:
+  confidence_threshold: 0.35
+  center_zone_ratio: 0.40
+
+training:
+  data: dataset/data.yaml
+  epochs: 100
+  image_size: 640
+  batch: 8
+  device: auto
+  project: runs/train
