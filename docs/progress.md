@@ -1,5 +1,123 @@
 # Progress log
 
+## 2026-11-23 — Approved title, system plan, repository reorganised as an information system
+
+- **Title approved by the university:** "Development of an Information System for Intelligent Drone Control,
+  Monitoring, and Data Processing" (RU: "Разработка информационной системы для интеллектуального управления
+  дроном, мониторинга и обработки данных"). The follow-me drone is the "intelligent control" part; the thesis
+  adds monitoring (web dashboard) and data processing (database, ML analytics, audit log).
+- **Research:** `../reports/Drone information system software design.md` (architecture, database, testing,
+  laptop-as-brain hardware). **Plan:** `docs/system_plan.md` (functions, architecture, tables, UML list, phases).
+- **Reorganisation:** code moved to one package `src/dronevision/` (imports `dronevision.*`), `pyproject.toml`
+  replaces `requirements.txt`, ruff + pre-commit config, tests in `tests/unit/`, `dataset/` → ignored `data/`,
+  new `backend/`, `frontend/`, `db/`, `docs/thesis/`, `docs/uml/`, stubs `dronevision.link` and
+  `dronevision.storage`. Removed unused `weights/yolo26n.pt`, the Blender auto-backup and stale local branches
+  (all kept in `../backups/*.bundle`). 56 tests pass; every script starts.
+- **Next:** Phase 1 of the plan: MAVLink link + ArduPilot SITL (in WSL), webcam follow-me steering a SITL copter.
+
+## 2026-11-05 — Measurement tools for gesture and voice commands
+
+Tools to collect the thesis metrics "gesture/voice accuracy vs distance and noise" and "latency".
+
+| File | What it does |
+|---|---|
+| `scripts/eval/measure_commands.py` | Guided session on the webcam/microphone. The screen says what to do ("Hold a FIST", `Say "go higher"`, or "Move naturally - NO gesture" for control trials); 3 s to get ready, 6 s to do it. Blocks per condition (default gesture: 1, 2, 3, 5 m; voice: quiet, noisy), shuffled order with a fixed seed, SPACE between blocks to walk to the next distance, K to skip a botched trial. Every trial is appended to `runs/measurements/<source>_<time>.csv` immediately. |
+| `scripts/eval/report_commands.py` | `report.md` (accuracy with 95 % Wilson interval, false-trigger rate, latency median/mean/90th percentile, confusions) and charts `gesture_accuracy.png` (accuracy vs distance) and `voice_accuracy.png` (per phrase, quiet vs noisy). |
+| `src/evaluation/command_trials.py` | Trial plan + `TrialRunner` (prepare → active → result; first command from the tested source counts; events before the window are ignored) + CSV. |
+| `src/evaluation/command_report.py` | The statistics and Markdown tables. |
+| `tests/test_measurements.py` | 13 tests (plan, runner timing, outcomes, latency, CSV, report numbers, Wilson interval). **52 tests total, all pass.** |
+
+Definitions (for the methods chapter):
+- **Accuracy** = correct / attempts; wrong command and no command (6 s) are both failures, counted separately.
+- **False-trigger rate** = control trials (tester moves/talks naturally) in which any command fired.
+- **Gesture latency** = command fired − first frame the expected hand shape was seen. Includes the designed hold
+  (1 s stop, 1.5 s land), so the recognition overhead is latency − hold.
+- **Voice latency** = command fired − end of the last word (Vosk word timestamps vs audio fed to the recognizer).
+- Each trial also logs the share of frames with a hand on the tester and the camera's own distance estimate
+  (pinhole, torso length), to check the tester stood at the right distance.
+- Not included yet: the drone link (Pi Zero video + MAVLink) and the arbiter's 0.5 s conflict window for FOLLOW /
+  COME BACK; STOP and LAND act at once. Link latency is measured on hardware (Phase 4).
+
+Checked: a headless dry run on a test clip (8 trials, CSV and report written; the photo has no gestures, so all
+"missed", no false triggers) and the voice recorder starts. Real measurements: needs the user.
+
+**First real session, 1 m block only (17 trials, `runs/measurements/gesture_20261105_200458.csv`):**
+
+| Gesture | Correct | Notes |
+|---|---|---|
+| LAND (fist) | 5/5 | latency 1.52 s = 1.5 s hold + ~20 ms |
+| STOP (palm) | 4/5 | latency 1.02 s = 1 s hold + ~20 ms; 1 × read as COME BACK after 0.25 s |
+| COME BACK (wave) | 3/5 | latency 0.2–0.47 s; 2 × read as STOP (palm held still ≥ 1 s before waving) |
+| control (no gesture) | 0/2 | both fired STOP at ~1.05 s |
+
+Findings and fixes:
+- In almost every trial the expected hand shape was already visible 50 ms after the window opened: the tester
+  raised the hand during "get ready". Both false triggers came right after a palm trial (palm still up). → The
+  prepare screen now says **"hands DOWN, wait for NOW"**, so each trial starts from rest as in real use. 1 m data
+  from before this change is kept but should be re-recorded for the thesis.
+- STOP → COME BACK in 0.25 s: the wave detector counted landmark jitter while the palm moved into place as
+  direction changes. → Fixed with **hysteresis**: a direction change counts only after the hand has swung back
+  ≥ 0.5 palm widths from its last turning point (`GestureTimer._swings`). New regression test fails on the old
+  code and passes now.
+- COME BACK → STOP when the palm is held still for 1 s before waving is the designed behaviour (still palm =
+  stop); the operator must start waving within 1 s. Accepted; documented as a usage rule.
+- Recognition overhead beyond the designed hold is ~1 frame (~20 ms) on the laptop.
+- The camera distance estimate is empty at 1 m (hips/feet out of frame) — expected, it needs the torso or full body.
+
+**54 tests, all pass.**
+
+**Second session, all distances (68 trials, `runs/measurements/gesture_20261105_201051.csv`), after the wave fix:**
+
+| Distance | Correct (of 15) | False triggers (of 2) |
+|---|---|---|
+| 1 m | 9 (60 %) | 2 |
+| 2 m | 8 (53 %) | 2 |
+| 3 m | 10 (67 %) | 2 |
+| 5 m | 9 (60 %) | 2 |
+
+By gesture: STOP 16/20, COME BACK 12/20, LAND 8/20. Errors: 19 of 27 were a STOP that nobody asked for (7 × during
+a wave, 5 × during a fist, 7 × in "no gesture" control trials); the expected shape was already visible within
+0.15 s of NOW in 47 of 60 trials. Accuracy did not fall with distance.
+
+Diagnosis: an open palm was in view and still *before* the tester did anything. Most likely a relaxed hand hanging
+at the side, which MediaPipe labels Open_Palm; held still for 1 s, that is a STOP by the rules. (To confirm with the
+tester.) Fixes:
+- **Raised-hand rule** (`gestures.raised_hands`): a hand counts only with the wrist above mid-chest (shoulder line +
+  0.5 × torso; torso from shoulder width when the hips are out of frame). Matches the spec "big gestures"; used in
+  the demo (also for the lock palm) and in the measurements.
+- Measurement: the get-ready countdown restarts while a hand is raised ("LOWER YOUR HAND"), so every trial
+  starts from rest. Instructions now say "Raise ...".
+- Distance check: the camera estimate was empty at 1–2 m (hips out of frame) and ~2.0 m at "3m", ~1.55 m at "5m" —
+  it should grow with distance, so either the tester stood closer than the tape marks or the estimate is off
+  (webcam field of view assumed 70°). To check with the tester before reporting distances.
+
+These 68 trials are kept as the "before" baseline for the thesis.
+
+**Third session with the raised-hand rule (68 trials, `gesture_20261105_205141.csv`): 4/60 correct**, but also
+0/8 false triggers. A usable hand was seen in ~0 % of frames (before: 100 %). The rule or the detection broke it;
+the CSV could not tell which. Lesson: check a rule on the live camera for a minute before a 30-minute session.
+
+**20 s gesture check** (`scripts/tools/gesture_check.py`, annotated snapshots in `runs/diagnostics/`, not uploaded),
+tester at ~1 m:
+- Hands down: hands are below the picture, **no hand detected** — so the "hanging hand looks like a palm"
+  explanation was wrong, at least at close range. The earlier false STOPs came from hands still raised.
+- Palm, fist and wave: detected and labelled correctly (fist 168/210 frames, palm 180/212), and the rule kept
+  every hand (at 1 m its limit is below the picture).
+- So at close range the rule is harmless; why hands vanished in the session (rule cutting lower gestures at 2–5 m,
+  or MediaPipe not finding small hands far away) is still open.
+
+Measurement now logs three shares per trial — `hand_found` (MediaPipe found any hand), `hand_own` (on the
+tester), `hand_seen` (raised, usable) — and `--record` saves the camera video + frame log next to the CSV (kept
+off GitHub), so sessions can be re-analysed and new rules tested offline instead of repeating sessions.
+**56 tests, all pass.**
+
+### Next steps
+1. User re-runs the gesture session with the hands-down rule (1/2/3/5 m, 5 repeats ≈ 15 min) and the voice
+   session (quiet + noisy ≈ 15 min).
+2. Report → thesis tables; decide whether the 5 m gesture accuracy is good enough or the fallback (closer range /
+   fewer gestures) is needed.
+3. Phase 2: follow-me world in MuJoCo.
+
 ## 2026-10-30 — Webcam follow-me prototype (Phase 1)
 
 Everything the drone's "brain" needs, running on the laptop webcam and microphone; the window shows the velocity

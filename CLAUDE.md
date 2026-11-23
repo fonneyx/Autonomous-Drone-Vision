@@ -20,8 +20,11 @@ What the drone does:
 5. **Obstacle avoidance** — an 8×8 distance sensor (VL53L5CX) watches the space in front.
 
 - Repo: `Autonomous-Drone-Vision` (GitHub, public later)
-- Thesis title (EN): "Development of an autonomous person-following drone with gesture and voice control and
-  obstacle avoidance"
+- Thesis title (approved 2026-11-23), EN: "Development of an Information System for Intelligent Drone Control,
+  Monitoring, and Data Processing"; RU: "Разработка информационной системы для интеллектуального управления
+  дроном, мониторинга и обработки данных". The thesis must cover all three: control (gestures/voice/arbiter/
+  follow), monitoring (live web dashboard), data processing (database + ML analytics, audit log). Plan:
+  docs/system_plan.md.
 - Timeline: speedrun ~3 months (Nov 2026 – Jan/Feb 2027), defense ~May–June 2027
 - Budget: very low. Prefer free tools. Uni provides a 3D printer; drone will be DIY. Real build must stay cheap:
   target ~$300 total (docs/hardware.md) — laptop does all heavy compute, Pi Zero only streams, no depth camera,
@@ -63,12 +66,15 @@ pressure); RL only outputs bounded velocity setpoints. A rule-based safety shiel
 
 ## 4. Phases
 ### Done
-MuJoCo obstacle course with depth camera (src/sim), RL avoidance pilot (99 % at 40 obstacles), classical
-follow-the-gap pilot + safety shield (src/control), YOLO detector (src/perception). See docs/progress.md.
+MuJoCo obstacle course with depth camera (src/dronevision/sim), RL avoidance pilot (99 % at 40 obstacles), classical
+follow-the-gap pilot + safety shield (src/dronevision/control), YOLO detector (src/dronevision/perception). See docs/progress.md.
 
 ### Folder layout
-src/{perception,voice,control,sim,hardware}, scripts/{demo,train,data,tools,blender}, tests/, docs/,
-runs/avoidance/avoidance-2 (the only uploaded model). Scripts add the repo root to sys.path and import `src.*`.
+src/dronevision/{perception,voice,control,evaluation,sim,link,storage,hardware} (one package, src layout,
+pyproject.toml), backend/ (FastAPI), frontend/ (dashboard), db/ (migrations), scripts/{demo,eval,train,data,tools,
+blender}, tests/unit, docs/{system_plan.md,progress.md,hardware.md,thesis/,uml/}, data/ (local datasets, ignored),
+runs/avoidance/avoidance-2 (the only uploaded model), runs/measurements (thesis CSVs, committed). Scripts add
+`<repo>/src` to sys.path and `import dronevision.*`; pytest uses `pythonpath = ["src"]`.
 
 ### Phase 1 — Webcam prototype
 Laptop webcam: person tracking + re-identification of "me", gestures (MediaPipe), voice commands (Vosk/Whisper),

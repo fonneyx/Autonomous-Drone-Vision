@@ -26,9 +26,9 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-from src.sim.avoidance_env import DroneAvoidanceEnv  # noqa: E402
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+from dronevision.sim.avoidance_env import DroneAvoidanceEnv  # noqa: E402
 
 TASKS = {
     # task: (environment, evaluation settings: fixed, fairly hard, comparable over time)

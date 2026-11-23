@@ -22,9 +22,9 @@ import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-from src.sim.avoidance_env import CONTROL_DT, DEPTH_RANGE, DroneAvoidanceEnv  # noqa: E402
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+from dronevision.sim.avoidance_env import CONTROL_DT, DEPTH_RANGE, DroneAvoidanceEnv  # noqa: E402
 
 
 def newest_model() -> Path:
