@@ -245,6 +245,10 @@ __marimo__/
 /runs/avoidance/avoidance-2/*
 !/runs/avoidance/avoidance-2/best_model.zip
 !/runs/avoidance/avoidance-2/evaluations.npz
+# Command measurements are thesis evidence (small CSVs + report): keep them
+!/runs/measurements/
+# ...but not the session videos (large, and they show the tester)
+/runs/measurements/*_video.*
 
 # Editor settings
 .vscode/

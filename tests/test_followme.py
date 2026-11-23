@@ -64,9 +64,38 @@ def test_wave_is_come_back_not_stop() -> None:
     assert feed(GestureTimer(), [palm(x) for x in xs]) == [Command.COME_BACK]
 
 
+def test_raising_a_jittery_palm_is_not_a_wave() -> None:
+    # Measured at 1 m: a palm moving into place (one direction) with landmark jitter fired COME_BACK in 0.25 s
+    xs = [300 + 15 * min(i, 5) + (4 if i % 2 else -4) for i in range(25)]
+    assert feed(GestureTimer(), [palm(x) for x in xs]) == [Command.STOP]
+
+
+def test_wave_still_fires_quickly() -> None:
+    xs = [300 + 40 * math.sin(2 * math.pi * 2.0 * i / FPS) for i in range(30)]  # 2 Hz, +-1 palm width
+    fired_at = None
+    timer = GestureTimer()
+    for i, x in enumerate(xs):
+        if timer.update(palm(x), i / FPS) is Command.COME_BACK:
+            fired_at = i / FPS
+            break
+    assert fired_at is not None and fired_at < 0.8
+
+
 def test_slow_drift_is_not_a_wave() -> None:
     xs = [300 + 3 * i for i in range(30)]  # hand drifting one way
     assert Command.COME_BACK not in feed(GestureTimer(), [palm(x) for x in xs])
+
+
+def test_only_raised_hands_count() -> None:
+    from src.perception.gestures import Hand, raised_hands
+
+    person = person_at(320, 120)  # shoulders at y=200, hips at y=320
+    def hand(y: float) -> Hand:
+        return Hand(OPEN_PALM, 0.9, (330.0, y), 40.0, np.zeros((21, 2)))
+    up, chest, hanging = hand(150), hand(240), hand(330)
+    assert raised_hands(person, [up, chest, hanging]) == [up, chest]  # mid-chest = 200 + 0.5 * 120 = 260
+    person.keypoints[:, 2] = 0  # shoulders not visible: cannot tell, keep all of the person's hands
+    assert len(raised_hands(person, [up, hanging])) == 2
 
 
 # --------------------------------------------------------------------- voice

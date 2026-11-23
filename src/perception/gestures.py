@@ -2,7 +2,8 @@
 
 MediaPipe's ready-made GestureRecognizer finds hands and labels their shape
 ("Open_Palm", "Closed_Fist", ...). Only the operator's hands count: a hand belongs
-to the operator if its wrist lies inside the operator's body box.
+to the operator if its wrist lies inside the operator's body box, and it must be
+RAISED (wrist above mid-chest) - a hand hanging at the side is never a command.
 
 Shapes become commands only after timing rules, so random movements do not
 trigger anything:
@@ -25,6 +26,7 @@ from pathlib import Path
 import numpy as np
 
 from src.commands import Command
+from src.perception.person_tracker import L_SHOULDER, R_SHOULDER, Person
 
 MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/latest/"
@@ -97,6 +99,23 @@ def hands_of(box: np.ndarray, hands: list[Hand], margin: float = 0.25) -> list[H
     ]
 
 
+def raised_hands(person: Person, hands: list[Hand], margin: float = 0.25, chest: float = 0.5) -> list[Hand]:
+    """The person's hands held up for a gesture: wrist above mid-chest (shoulder line + `chest` × torso).
+
+    A relaxed hand hanging at the side often looks like an open palm to MediaPipe; measured on the webcam
+    (2026-11-05) every "no gesture" control trial fired STOP before this rule. If the shoulders are not
+    visible, the rule cannot be applied and all the person's hands count."""
+    own = hands_of(person.box, hands, margin)
+    if not person.visible(L_SHOULDER, R_SHOULDER):
+        return own
+    shoulder_y = float(person.keypoints[L_SHOULDER, 1] + person.keypoints[R_SHOULDER, 1]) / 2
+    torso = person.torso_length()
+    if torso is None:  # hips out of frame (close to the camera): torso ~1.3 x shoulder width
+        torso = max(1.3 * abs(float(person.keypoints[L_SHOULDER, 0] - person.keypoints[R_SHOULDER, 0])),
+                    0.25 * person.height)
+    return [hand for hand in own if hand.wrist[1] < shoulder_y + chest * torso]
+
+
 @dataclass
 class HandObservation:
     label: str
@@ -124,15 +143,18 @@ class GestureTimer:
         wave_reversals: int = 2,
         wave_amplitude: float = 1.0,
         still_amplitude: float = 0.6,
+        swing: float = 0.5,
     ):
         """wave_amplitude / still_amplitude: side-to-side hand movement in palm widths that counts as a
-        wave / as holding still. wave_reversals: direction changes needed for a wave."""
+        wave / as holding still. wave_reversals: direction changes needed for a wave, each after a swing
+        of at least `swing` palm widths."""
         self.stop_hold = stop_hold
         self.land_hold = land_hold
         self.wave_window = wave_window
         self.wave_reversals = wave_reversals
         self.wave_amplitude = wave_amplitude
         self.still_amplitude = still_amplitude
+        self.swing = swing
         self.history: deque[tuple[float, str, float, float]] = deque()  # (time, label, x, palm width)
         self.shape = "None"
         self.since = 0.0
@@ -150,10 +172,27 @@ class GestureTimer:
         scale = float(np.median([w for _, w in palms]))
         if xs.max() - xs.min() < self.wave_amplitude * scale:
             return False
-        steps = np.diff(xs)
-        steps = steps[np.abs(steps) > 0.05 * scale]  # ignore jitter
-        reversals = int(np.sum(np.sign(steps[1:]) != np.sign(steps[:-1]))) if len(steps) > 1 else 0
-        return reversals >= self.wave_reversals
+        return self._swings(xs, self.swing * scale) >= self.wave_reversals
+
+    @staticmethod
+    def _swings(xs: np.ndarray, swing: float) -> int:
+        """Direction changes, counting one only after the hand has come back by at least `swing` pixels
+        from its last turning point (hysteresis): landmark jitter and a hand being raised are not a wave."""
+        reversals = 0
+        direction = 0  # +1 moving right, -1 moving left, 0 not yet known
+        extreme = float(xs[0])
+        for x in xs[1:]:
+            x = float(x)
+            if direction == 0:
+                if abs(x - extreme) >= swing:
+                    direction = 1 if x > extreme else -1
+                    extreme = x
+            elif (x - extreme) * direction > 0:
+                extreme = x  # still going the same way: new turning-point candidate
+            elif abs(x - extreme) >= swing:
+                reversals += 1
+                direction, extreme = -direction, x
+        return reversals
 
     def _is_still(self, now: float) -> bool:
         recent = [(x, w) for t, label, x, w in self._window(now, self.stop_hold) if label == OPEN_PALM]
