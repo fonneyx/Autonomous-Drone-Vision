@@ -20,10 +20,10 @@ from pathlib import Path
 import cv2
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-from src.perception.gestures import HandReader, hands_of, raised_hands  # noqa: E402
-from src.perception.person_tracker import L_SHOULDER, R_SHOULDER, PersonTracker  # noqa: E402
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+from dronevision.perception.gestures import HandReader, hands_of, raised_hands  # noqa: E402
+from dronevision.perception.person_tracker import L_SHOULDER, R_SHOULDER, PersonTracker  # noqa: E402
 
 PHASES = ["hands DOWN", "raise an OPEN PALM", "raise a FIST", "WAVE your palm"]
 

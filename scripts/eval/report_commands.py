@@ -16,11 +16,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-from src.commands import Command  # noqa: E402
-from src.evaluation.command_report import accuracy, markdown  # noqa: E402
-from src.evaluation.command_trials import SKIPPED, read_csv  # noqa: E402
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+from dronevision.commands import Command  # noqa: E402
+from dronevision.evaluation.command_report import accuracy, markdown  # noqa: E402
+from dronevision.evaluation.command_trials import SKIPPED, read_csv  # noqa: E402
 
 DATA_DIR = ROOT / "runs" / "measurements"
 # Validated categorical palette (fixed order); text stays in ink colours, not series colours

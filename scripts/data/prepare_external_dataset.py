@@ -1,4 +1,4 @@
-"""Link or copy an external YOLO-style dataset into the project dataset folder.
+"""Link or copy an external YOLO-style dataset into the project data folder.
 
 This avoids filling the system SSD by default: the script uses filesystem links
 when possible. If a link cannot be created, it falls back to copying the files.
@@ -102,7 +102,7 @@ def prepare_split(source_root: Path, target_root: Path, split: str, mode: str, d
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True, help="External dataset root folder.")
-    parser.add_argument("--target", type=Path, default=Path("dataset"), help="Project dataset root to populate.")
+    parser.add_argument("--target", type=Path, default=Path("data"), help="Project dataset root to populate.")
     parser.add_argument("--split", default="train,val", help="Comma-separated splits to prepare: train,val,test")
     parser.add_argument("--mode", choices=("link", "copy"), default="link", help="Use filesystem links when possible; otherwise copy.")
     parser.add_argument("--dry-run", action="store_true", help="Print actions without creating files.")

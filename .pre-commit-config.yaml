@@ -1,0 +1,8 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+        # format is opt-in for now: run `ruff format` on a file when you touch it
+        stages: [manual]

@@ -34,14 +34,14 @@ import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-from src.commands import Command, CommandEvent  # noqa: E402
-from src.control.arbiter import Arbiter, Mode  # noqa: E402
-from src.control.follow_controller import FollowController, Velocity  # noqa: E402
-from src.perception.gestures import OPEN_PALM, GestureTimer, HandReader, main_hand, raised_hands  # noqa: E402
-from src.perception.person_tracker import PersonTracker  # noqa: E402
-from src.perception.reid import OperatorLock  # noqa: E402
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+from dronevision.commands import Command, CommandEvent  # noqa: E402
+from dronevision.control.arbiter import Arbiter, Mode  # noqa: E402
+from dronevision.control.follow_controller import FollowController, Velocity  # noqa: E402
+from dronevision.perception.gestures import OPEN_PALM, GestureTimer, HandReader, main_hand, raised_hands  # noqa: E402
+from dronevision.perception.person_tracker import PersonTracker  # noqa: E402
+from dronevision.perception.reid import OperatorLock  # noqa: E402
 
 KEYS = {
     ord("t"): Command.TAKE_OFF, ord("f"): Command.FOLLOW, ord("s"): Command.STOP, ord("l"): Command.LAND,
@@ -106,7 +106,7 @@ def main() -> None:
     controller = FollowController(width, height, args.hfov)
     voice = None
     if not args.no_voice:
-        from src.voice.commands import VoiceListener
+        from dronevision.voice.commands import VoiceListener
 
         voice = VoiceListener(device=args.mic)
         voice.start()
