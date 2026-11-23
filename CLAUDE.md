@@ -66,12 +66,15 @@ pressure); RL only outputs bounded velocity setpoints. A rule-based safety shiel
 
 ## 4. Phases
 ### Done
-MuJoCo obstacle course with depth camera (src/sim), RL avoidance pilot (99 % at 40 obstacles), classical
-follow-the-gap pilot + safety shield (src/control), YOLO detector (src/perception). See docs/progress.md.
+MuJoCo obstacle course with depth camera (src/dronevision/sim), RL avoidance pilot (99 % at 40 obstacles), classical
+follow-the-gap pilot + safety shield (src/dronevision/control), YOLO detector (src/dronevision/perception). See docs/progress.md.
 
 ### Folder layout
-src/{perception,voice,control,sim,hardware,evaluation}, scripts/{demo,eval,train,data,tools,blender}, tests/,
-docs/, runs/avoidance/avoidance-2 (the only uploaded model), runs/measurements (thesis measurement CSVs, committed). Scripts add the repo root to sys.path and import `src.*`.
+src/dronevision/{perception,voice,control,evaluation,sim,link,storage,hardware} (one package, src layout,
+pyproject.toml), backend/ (FastAPI), frontend/ (dashboard), db/ (migrations), scripts/{demo,eval,train,data,tools,
+blender}, tests/unit, docs/{system_plan.md,progress.md,hardware.md,thesis/,uml/}, data/ (local datasets, ignored),
+runs/avoidance/avoidance-2 (the only uploaded model), runs/measurements (thesis CSVs, committed). Scripts add
+`<repo>/src` to sys.path and `import dronevision.*`; pytest uses `pythonpath = ["src"]`.
 
 ### Phase 1 — Webcam prototype
 Laptop webcam: person tracking + re-identification of "me", gestures (MediaPipe), voice commands (Vosk/Whisper),

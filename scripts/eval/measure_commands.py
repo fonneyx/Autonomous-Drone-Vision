@@ -33,10 +33,10 @@ import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-from src.commands import Command, CommandEvent  # noqa: E402
-from src.evaluation.command_trials import (  # noqa: E402
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+from dronevision.commands import Command, CommandEvent  # noqa: E402
+from dronevision.evaluation.command_trials import (  # noqa: E402
     CORRECT,
     NO_TRIGGER,
     SKIPPED,
@@ -57,7 +57,7 @@ def text(image: np.ndarray, line: str, origin: tuple[int, int], colour=WHITE, sc
 
 
 def expected_shape(command: Command | None) -> str | None:
-    from src.perception.gestures import FIST, OPEN_PALM
+    from dronevision.perception.gestures import FIST, OPEN_PALM
 
     return {Command.STOP: OPEN_PALM, Command.COME_BACK: OPEN_PALM, Command.LAND: FIST}.get(command)
 
@@ -133,15 +133,15 @@ def main() -> None:
 
     tracker = hand_reader = gestures = controller = voice = None
     if args.source == "gesture":
-        from src.control.follow_controller import FollowController
-        from src.perception.gestures import GestureTimer, HandReader, hands_of, main_hand, raised_hands
-        from src.perception.person_tracker import PersonTracker
+        from dronevision.control.follow_controller import FollowController
+        from dronevision.perception.gestures import GestureTimer, HandReader, hands_of, main_hand, raised_hands
+        from dronevision.perception.person_tracker import PersonTracker
 
         print("Loading YOLO11s-pose and the MediaPipe gesture model ...")
         tracker, hand_reader, gestures = PersonTracker(), HandReader(), GestureTimer()
         controller = FollowController(width, height, args.hfov)
     else:
-        from src.voice.commands import VoiceListener
+        from dronevision.voice.commands import VoiceListener
 
         voice = VoiceListener(device=args.mic)
         voice.start()

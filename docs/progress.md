@@ -1,5 +1,20 @@
 # Progress log
 
+## 2026-11-23 — Approved title, system plan, repository reorganised as an information system
+
+- **Title approved by the university:** "Development of an Information System for Intelligent Drone Control,
+  Monitoring, and Data Processing" (RU: "Разработка информационной системы для интеллектуального управления
+  дроном, мониторинга и обработки данных"). The follow-me drone is the "intelligent control" part; the thesis
+  adds monitoring (web dashboard) and data processing (database, ML analytics, audit log).
+- **Research:** `../reports/Drone information system software design.md` (architecture, database, testing,
+  laptop-as-brain hardware). **Plan:** `docs/system_plan.md` (functions, architecture, tables, UML list, phases).
+- **Reorganisation:** code moved to one package `src/dronevision/` (imports `dronevision.*`), `pyproject.toml`
+  replaces `requirements.txt`, ruff + pre-commit config, tests in `tests/unit/`, `dataset/` → ignored `data/`,
+  new `backend/`, `frontend/`, `db/`, `docs/thesis/`, `docs/uml/`, stubs `dronevision.link` and
+  `dronevision.storage`. Removed unused `weights/yolo26n.pt`, the Blender auto-backup and stale local branches
+  (all kept in `../backups/*.bundle`). 56 tests pass; every script starts.
+- **Next:** Phase 1 of the plan: MAVLink link + ArduPilot SITL (in WSL), webcam follow-me steering a SITL copter.
+
 ## 2026-11-05 — Measurement tools for gesture and voice commands
 
 Tools to collect the thesis metrics "gesture/voice accuracy vs distance and noise" and "latency".
