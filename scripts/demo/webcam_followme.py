@@ -10,7 +10,8 @@ How to use:
 1. Stand in front of the camera and hold up an OPEN PALM for 1 s -> you are locked as the operator
    (green box "ME"). Other people get grey boxes and their gestures are ignored.
 2. Say "take off" (or press T), then "follow me" (or F).
-3. Gestures (hold ~1 s): open palm = stop, fist = land (1.5 s), wave = come back.
+3. Gestures with the hand RAISED above mid-chest (hold ~1 s): open palm = stop, fist = land (1.5 s),
+   wave = come back. A hand hanging at your side never counts.
 4. Voice: take off, follow me, stop, land, come back, go higher, go lower, closer, further, take a photo.
 
 Keys: T take off  F follow  S stop  L land  C come back  U/J higher/lower  [ ] closer/further
@@ -38,7 +39,7 @@ if str(ROOT) not in sys.path:
 from src.commands import Command, CommandEvent  # noqa: E402
 from src.control.arbiter import Arbiter, Mode  # noqa: E402
 from src.control.follow_controller import FollowController, Velocity  # noqa: E402
-from src.perception.gestures import OPEN_PALM, GestureTimer, HandReader, hands_of, main_hand  # noqa: E402
+from src.perception.gestures import OPEN_PALM, GestureTimer, HandReader, main_hand, raised_hands  # noqa: E402
 from src.perception.person_tracker import PersonTracker  # noqa: E402
 from src.perception.reid import OperatorLock  # noqa: E402
 
@@ -135,7 +136,7 @@ def main() -> None:
 
         # Become the operator: hold an open palm for LOCK_HOLD seconds (when nobody is locked)
         if not lock.locked:
-            palm_person = next((p for p in people if any(h.label == OPEN_PALM for h in hands_of(p.box, hands))), None)
+            palm_person = next((p for p in people if any(h.label == OPEN_PALM for h in raised_hands(p, hands))), None)
             if palm_person is None:
                 lock_candidate = None
             elif lock_candidate is None or lock_candidate[0] != palm_person.track_id:
@@ -149,7 +150,7 @@ def main() -> None:
 
         # Gestures count only from the operator
         if operator is not None:
-            command = gestures.update(main_hand(hands_of(operator.box, hands)), now)
+            command = gestures.update(main_hand(raised_hands(operator, hands)), now)
             if command is not None:
                 events.append(CommandEvent(command, "gesture", now))
         if voice is not None:

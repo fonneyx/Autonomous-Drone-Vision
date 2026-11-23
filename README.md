@@ -62,8 +62,10 @@ src/
   control/        command arbiter, follow controller, classical pilot, safety shield
   sim/            MuJoCo worlds — obstacle course for the RL pilot
   hardware/       (later) MAVLink link to ArduPilot
+  evaluation/     measurement logic: command trials and their statistics
 scripts/
-  demo/           watch the trained pilot fly
+  demo/           webcam follow-me prototype, watch the trained pilot fly
+  eval/           thesis measurements (gesture/voice accuracy and latency) and their reports
   train/          train the RL pilot (PPO) and YOLO
   data/           dataset tools
   tools/          GPU check
@@ -94,6 +96,9 @@ python scripts/tools/check_gpu.py
 
 ```bash
 python scripts/demo/webcam_followme.py                      # follow-me prototype on your webcam + microphone
+python scripts/eval/measure_commands.py --source gesture    # measure gesture accuracy at 1/2/3/5 m
+python scripts/eval/measure_commands.py --source voice      # measure voice accuracy, quiet vs noisy
+python scripts/eval/report_commands.py                      # tables + charts in runs/measurements/report
 python scripts/demo/fly_avoidance.py                        # watch the RL pilot fly the obstacle course
 python scripts/demo/fly_avoidance.py --headless --episodes 100   # success-rate test
 python scripts/train/train_pilot.py --timesteps 200000      # short RL training run

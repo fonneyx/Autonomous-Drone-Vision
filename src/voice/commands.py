@@ -66,6 +66,7 @@ class VoiceListener:
         self.events: queue.Queue[CommandEvent] = queue.Queue()
         self.last_text = ""
         self.error: str | None = None
+        self._audio_seconds = 0.0  # audio fed to the recognizer so far (its word times count from 0)
         self._running = False
         self._thread: threading.Thread | None = None
 
@@ -91,6 +92,7 @@ class VoiceListener:
                                    device=self.device) as stream:
                 while self._running:
                     data, _ = stream.read(4000)
+                    self._audio_seconds += 4000 / SAMPLE_RATE
                     if recognizer.AcceptWaveform(bytes(data)):
                         self._handle(json.loads(recognizer.Result()))
         except Exception as error:  # microphone missing, model download failed, ...
@@ -105,4 +107,9 @@ class VoiceListener:
         self.last_text = f"{text} ({confidence:.2f})"
         command = parse(text)
         if command is not None and confidence >= self.min_confidence:
-            self.events.put(CommandEvent(command, "voice", time.monotonic()))
+            now = time.monotonic()
+            spoken_at = None
+            if words and "end" in words[-1]:
+                lag = self._audio_seconds - float(words[-1]["end"])  # audio heard after the last word
+                spoken_at = now - lag if 0.0 <= lag < 10.0 else None
+            self.events.put(CommandEvent(command, "voice", now, spoken_at))

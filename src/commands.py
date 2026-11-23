@@ -24,3 +24,4 @@ class CommandEvent:
     command: Command
     source: str  # "gesture", "voice" or "keyboard"
     time: float  # seconds (time.monotonic())
+    spoken_at: float | None = None  # voice only: when the last word ended (for latency measurements)
