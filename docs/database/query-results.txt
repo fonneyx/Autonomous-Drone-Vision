@@ -1,0 +1,34 @@
+$ psql -v ON_ERROR_STOP=1 -f docs/database/schema.sql      -- PostgreSQL 16.2 on x86_64-pc-mingw64
+DROP TABLE, CREATE TABLE x7, CREATE INDEX x2, INSERT x7 (41 rows) - no errors
+
+-- Q1  JOIN (command_event, flight, operator, drone, ml_model): command log
+        time         |     operator     |    drone    |  source   |  command   |       model        | decision |             reason             
+---------------------+------------------+-------------+-----------+------------+--------------------+----------+--------------------------------
+ 2026-11-23 11:03:10 | Aidar Serikov    | SITL copter | gesture   | stop       | gesture_recognizer | accepted | operator gesture, held 1.0 s
+ 2026-11-23 11:05:00 | Aidar Serikov    | SITL copter | voice     | go_higher  | vosk-small-en      | accepted | voice command from operator
+ 2026-11-23 11:11:30 | Aidar Serikov    | SITL copter | gesture   | land       | gesture_recognizer | accepted | operator gesture, held 1.5 s
+ 2026-11-23 15:31:00 | Aruzhan Sadykova | SITL copter | voice     | follow_me  | vosk-small-en      | accepted | voice command from operator
+ 2026-11-23 15:36:20 | Aruzhan Sadykova | SITL copter | voice     | take_photo | vosk-small-en      | rejected | confidence below 0.60
+ 2026-11-23 15:40:10 | Aruzhan Sadykova | SITL copter | voice     | land       | vosk-small-en      | accepted | voice command from operator
+ 2026-11-24 10:10:00 | Aidar Serikov    | MuJoCo quad | gesture   | come_back  | gesture_recognizer | accepted | wave detected (3 swings)
+ 2026-11-24 10:14:00 | Aidar Serikov    | MuJoCo quad | gesture   | stop       | gesture_recognizer | rejected | hand belongs to another person
+ 2026-11-24 17:03:30 | Timur Akhmetov   | Falcon F450 | dashboard | land       | -                  | accepted | dashboard button
+(9 rows)
+
+-- Q2  GROUP BY source: accepted share and latency
+  source   | commands | accepted | accepted_pct | avg_latency_ms 
+-----------+----------+----------+--------------+----------------
+ voice     |        4 |        3 |         75.0 |            660
+ gesture   |        4 |        3 |         75.0 |           1243
+ dashboard |        1 |        1 |        100.0 |            120
+(3 rows)
+
+-- Q3  GROUP BY flight over the M:N link flight_model: models used
+ flight_id |     operator     | environment | minutes |                   models_used                   | min_battery_pct 
+-----------+------------------+-------------+---------+-------------------------------------------------+-----------------
+         1 | Aidar Serikov    | sim         |    12.0 | gesture_recognizer, vosk-small-en, yolo11s-pose |              67
+         2 | Aruzhan Sadykova | sim         |    11.0 | vosk-small-en, yolo11s-pose                     |              72
+         3 | Aidar Serikov    | sim         |    15.0 | gesture_recognizer, ppo-avoidance, yolo11s-pose |              60
+         4 | Timur Akhmetov   | real        |     4.0 | gesture_recognizer, yolo11s-pose                |              99
+(4 rows)
+
