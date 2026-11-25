@@ -28,6 +28,9 @@ STYLE = {
     "table": ("#dae8fc", "#6c8ebf"),
     "ref": ("#f5f5f5", "#999999"),
     "lifeline": ("#f5f5f5", "#666666"),
+    "action": ("#dae8fc", "#6c8ebf"),
+    "decision": ("#fff2cc", "#d6b656"),
+    "lane": ("#ffffff", "#666666"),
 }
 
 
@@ -68,12 +71,29 @@ class Message:
     reply: bool = False
 
 
+@dataclass
+class Fragment:
+    """Combined fragment of a sequence diagram (e.g. alt): box, operator tab and guarded regions."""
+    x: float
+    y: float
+    w: float
+    h: float
+    operator: str
+    guards: list[tuple[float, str]]  # (y where the region starts, "[guard]"); the first region starts at y
+
+
 class Diagram:
     def __init__(self, name: str, width: int, height: int, title: str = "") -> None:
         self.name, self.W, self.H, self.title = name, width, height, title
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
         self.messages: list[Message] = []
+        self.fragments: list[Fragment] = []
+
+    def fragment(self, *args, **kwargs) -> Fragment:
+        f = Fragment(*args, **kwargs)
+        self.fragments.append(f)
+        return f
 
     # ---------------- building ----------------
     def node(self, *args, **kwargs) -> Node:
@@ -108,6 +128,8 @@ class Diagram:
             getattr(self, f"_draw_{n.kind}")(ax, n)
         for e in self.edges:
             self._draw_edge(ax, e)
+        for f in self.fragments:
+            self._draw_fragment(ax, f)
         for m in self.messages:
             self._draw_message(ax, m)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,6 +180,48 @@ class Diagram:
             self._text(ax, n.x + 52, y, name, 11, bold=key.startswith("PK"), ha="left", family=MONO)
             self._text(ax, n.x + n.w - 8, y, typ, 10.5, ha="right", family=MONO, color="#555")
 
+    # activity diagram shapes
+    def _draw_lane(self, ax, n: Node) -> None:
+        fc, ec = STYLE["lane"]
+        ax.add_patch(Rectangle((n.x, n.y), n.w, n.h, fc=fc, ec=ec, lw=1.4, zorder=0))
+        ax.add_patch(Rectangle((n.x, n.y), n.w, 36, fc="#f5f5f5", ec=ec, lw=1.4, zorder=0.5))
+        self._text(ax, n.x + n.w / 2, n.y + 18, n.label, 13, bold=True)
+
+    def _draw_initial(self, ax, n: Node) -> None:
+        from matplotlib.patches import Circle
+        ax.add_patch(Circle((n.x + n.w / 2, n.y + n.h / 2), n.w / 2, fc="#000", ec="#000", zorder=3))
+
+    def _draw_final(self, ax, n: Node) -> None:
+        from matplotlib.patches import Circle
+        c = (n.x + n.w / 2, n.y + n.h / 2)
+        ax.add_patch(Circle(c, n.w / 2, fc="white", ec="#000", lw=1.6, zorder=3))
+        ax.add_patch(Circle(c, n.w / 2 - 6, fc="#000", ec="#000", zorder=4))
+
+    def _draw_action(self, ax, n: Node) -> None:
+        fc, ec = STYLE["action"]
+        ax.add_patch(FancyBboxPatch((n.x, n.y), n.w, n.h, boxstyle="round,pad=0,rounding_size=18", fc=fc, ec=ec,
+                                    lw=1.6, zorder=2))
+        self._text(ax, n.x + n.w / 2, n.y + n.h / 2, n.label, 12)
+
+    def _draw_decision(self, ax, n: Node) -> None:
+        fc, ec = STYLE["decision"]
+        cx, cy = n.x + n.w / 2, n.y + n.h / 2
+        ax.add_patch(Polygon([(cx, n.y), (n.x + n.w, cy), (cx, n.y + n.h), (n.x, cy)], closed=True, fc=fc, ec=ec,
+                             lw=1.6, zorder=2))
+
+    def _draw_bar(self, ax, n: Node) -> None:
+        ax.add_patch(Rectangle((n.x, n.y), n.w, n.h, fc="#000", ec="none", zorder=3))
+
+    def _draw_fragment(self, ax, f: Fragment) -> None:
+        ax.add_patch(Rectangle((f.x, f.y), f.w, f.h, fc="none", ec="#555", lw=1.4, zorder=3))
+        tab = [(f.x, f.y), (f.x + 56, f.y), (f.x + 56, f.y + 16), (f.x + 46, f.y + 26), (f.x, f.y + 26)]
+        ax.add_patch(Polygon(tab, closed=True, fc="#f5f5f5", ec="#555", lw=1.2, zorder=3))
+        self._text(ax, f.x + 24, f.y + 13, f.operator, 12, bold=True)
+        for i, (gy, guard) in enumerate(f.guards):
+            if i:
+                ax.plot([f.x, f.x + f.w], [gy, gy], color="#555", lw=1.2, ls=(0, (6, 4)), zorder=3)
+            self._text(ax, f.x + (66 if i == 0 else 10), gy + 13, guard, 11.5, bold=True, ha="left", color="#7a4b00")
+
     def _draw_lifeline(self, ax, n: Node) -> None:
         fc, ec = STYLE["lifeline"]
         ax.add_patch(Rectangle((n.x, n.y), n.w, 44, fc=fc, ec=ec, lw=1.4, zorder=2))
@@ -202,6 +266,8 @@ class Diagram:
             cells.extend(self._drawio_node(n))
         for i, e in enumerate(self.edges):
             cells.append(self._drawio_edge(i, e))
+        for i, f in enumerate(self.fragments):
+            cells.extend(self._drawio_fragment(i, f))
         for i, m in enumerate(self.messages):
             cells.append(self._drawio_message(i, m))
         body = "".join(cells)
@@ -252,7 +318,36 @@ class Diagram:
             return [_vertex(n.id, label, n.x, n.y, n.w, n.h,
                             "shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;"
                             f"collapsible=0;size=44;fillColor={fc};strokeColor={ec};fontStyle=1;fontSize=12;")]
+        if n.kind == "lane":
+            return [_vertex(n.id, label, n.x, n.y, n.w, n.h,
+                            "swimlane;html=1;startSize=36;horizontal=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;"
+                            "strokeColor=#666666;fontStyle=1;fontSize=13;collapsible=0;")]
+        if n.kind == "initial":
+            return [_vertex(n.id, "", n.x, n.y, n.w, n.h, "ellipse;html=1;fillColor=#000000;strokeColor=#000000;")]
+        if n.kind == "final":
+            return [_vertex(n.id, "", n.x, n.y, n.w, n.h,
+                            "ellipse;html=1;shape=endState;fillColor=#000000;strokeColor=#000000;")]
+        if n.kind == "action":
+            return [_vertex(n.id, label, n.x, n.y, n.w, n.h, base + "rounded=1;arcSize=40;")]
+        if n.kind == "decision":
+            return [_vertex(n.id, "", n.x, n.y, n.w, n.h, base + "rhombus;")]
+        if n.kind == "bar":
+            return [_vertex(n.id, "", n.x, n.y, n.w, n.h, "html=1;fillColor=#000000;strokeColor=none;")]
         raise ValueError(n.kind)
+
+    def _drawio_fragment(self, i: int, f: Fragment) -> list[str]:
+        out = [_vertex(f"f{i}", f"<b>{f.operator}</b>", f.x, f.y, f.w, f.h,
+                       "shape=umlFrame;whiteSpace=wrap;html=1;width=56;height=26;fillColor=none;strokeColor=#555555;"
+                       "verticalAlign=top;align=left;spacingLeft=4;")]
+        for j, (gy, guard) in enumerate(f.guards):
+            if j:
+                out.append(f'<mxCell id="f{i}d{j}" style="endArrow=none;dashed=1;html=1;strokeColor=#555555;" '
+                           f'edge="1" parent="1"><mxGeometry relative="1" as="geometry">'
+                           f'<mxPoint x="{f.x}" y="{gy}" as="sourcePoint"/><mxPoint x="{f.x + f.w}" y="{gy}" '
+                           f'as="targetPoint"/></mxGeometry></mxCell>')
+            out.append(_vertex(f"f{i}g{j}", f"<b>{html.escape(guard)}</b>", f.x + (60 if j == 0 else 6), gy, 360, 26,
+                               "text;html=1;align=left;verticalAlign=middle;fontColor=#7a4b00;fontSize=12;"))
+        return out
 
     def _drawio_edge(self, i: int, e: Edge) -> str:
         if e.kind == "flow":
