@@ -232,7 +232,7 @@ __marimo__/
 /runs/avoidance/avoidance-2/*
 !/runs/avoidance/avoidance-2/best_model.zip
 !/runs/avoidance/avoidance-2/evaluations.npz
-# Command measurements are thesis evidence (small CSVs + report): keep them
+# Command measurements (small CSVs + report) are kept: they are the evaluation results
 !/runs/measurements/
 # ...but not the session videos (large, and they show the tester)
 /runs/measurements/*_video.*
@@ -245,3 +245,7 @@ __marimo__/
 
 # MediaPipe models (downloaded on first use)
 /models/*.task
+
+# Private working notes (kept locally, not published)
+/CLAUDE.md
+/docs/progress.md
