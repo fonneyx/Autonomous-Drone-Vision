@@ -83,7 +83,7 @@ confidence, estimated distance).
 | Vehicle | Changes needed |
 |---|---|
 | ArduPilot SITL (copter) | Main test bench |
-| Real quad (SpeedyBee F405, ArduPilot) | Bench test with props off first; see [hardware](hardware.md) |
+| Real quad (SpeedyBee F405, ArduPilot) | Bench test with props off first |
 | FPV quad | Same code |
 | Plane (ArduPilot Plane) | New follow rule (orbit or trail behind the target); lost lock means loiter instead of hover |
 
