@@ -13,7 +13,7 @@ decision for live monitoring and analysis.
 ![License](https://img.shields.io/badge/license-all%20rights%20reserved-lightgrey)
 
 [Purpose](#purpose) · [Features](#features) · [Users](#users) · [Requirements](#requirements) ·
-[How it works](#how-it-works) · [Quick start](#quick-start) · [Documentation](#documentation) · [Roadmap](#roadmap)
+[How it works](#how-it-works) · [Quick start](#quick-start) · [Documentation](#documentation) · [Interface](#interface)
 
 </div>
 
@@ -177,21 +177,6 @@ says who may give commands and how to try again. The registration form checks th
 (format) and the consent box before saving.
 
 **Evaluation** - [usability test with a first-time user](docs/ui/evaluation.md)
-
-## Roadmap
-
-| Part | Status |
-|---|---|
-| RL obstacle-avoidance pilot in MuJoCo (PPO) | ✅ 99 % success at 40 obstacles |
-| Classical pilot + safety shield | ✅ |
-| Webcam follow-me: tracking, re-ID, gestures, voice, arbiter | ✅ live-tested |
-| Gesture/voice measurement tools (accuracy by distance, latency) | ✅ |
-| Data model: DFD, ERD, PostgreSQL schema | ✅ |
-| MAVLink link + ArduPilot SITL | ⏳ next |
-| Flight recorder writing to PostgreSQL, audit log | ⏳ |
-| Backend API + live web dashboard | ⏳ |
-| Follow-me in simulation (moving operator, wind, noise, latency) | ⏳ |
-| Real drone: bench tests with propellers off | ⏳ |
 
 ## Safety
 
