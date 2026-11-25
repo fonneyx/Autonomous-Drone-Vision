@@ -34,6 +34,7 @@ MAVLink. Each camera frame passes through four parts:
 - **Pilot** steers around obstacles: a reinforcement-learning pilot or a classical one.
 - **Safety shield** enforces the minimum distance and speed limit, and hovers when the target is lost.
 
+Only the operator, people who agreed to be followed and the operator's own vehicles can be selected as targets.
 Everything is written to PostgreSQL for replay and reports; the database is never in the control loop. Details are
 in [docs/architecture.md](docs/architecture.md).
 
