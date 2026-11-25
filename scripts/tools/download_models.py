@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MODELS = ROOT / "models"
-RELEASE = "https://github.com/fonneyx/autonomous-drone-vision/releases/download/v0.2.0"
+RELEASE = "https://github.com/fonneyx/autonomous-drone-vision/releases/download/models"
 FILES = {
     "avoidance-pilot.zip": "2b65f8f679381b79ee4bd1db4e19d47eedbc108e64d74bb96d8d3a04e51fd864",
 }
