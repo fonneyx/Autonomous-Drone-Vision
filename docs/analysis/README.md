@@ -5,7 +5,8 @@ Diagrams are edited in draw.io (`.drawio`) and exported to `.png`. Both are gene
 
 | Diagram | File |
 |---|---|
-| Sequence: land the drone with a fist gesture | [sequence-land-by-gesture.png](sequence-land-by-gesture.png) · [.drawio](sequence-land-by-gesture.drawio) |
+| Activity: land the drone with a fist gesture (swimlanes, decisions, fork/join) | [activity-land-by-gesture.png](activity-land-by-gesture.png) · [.drawio](activity-land-by-gesture.drawio) |
+| Sequence: land the drone with a fist gesture (`alt`: operator's hand / another person's hand) | [sequence-land-by-gesture.png](sequence-land-by-gesture.png) · [.drawio](sequence-land-by-gesture.drawio) |
 | DFD context diagram | [dfd-context.png](dfd-context.png) · [.drawio](dfd-context.drawio) |
 | DFD level 0 | [dfd-level0.png](dfd-level0.png) · [.drawio](dfd-level0.drawio) |
 | DFD level 1: 2.0 Recognize operator commands | [dfd-level1.png](dfd-level1.png) · [.drawio](dfd-level1.drawio) |
