@@ -122,21 +122,6 @@ config/  assets/     settings, 3D models for the simulator
 
 - [Architecture and roadmap](docs/architecture.md) · [Hardware](docs/hardware.md) · [Requirements](docs/requirements/README.md)
 
-## Roadmap
-
-| Part | Status |
-|---|---|
-| RL obstacle-avoidance pilot in MuJoCo (PPO) | ✅ 99 % success at 40 obstacles |
-| Classical pilot + safety shield | ✅ |
-| Webcam follow-me: tracking, re-ID, gestures, voice, arbiter | ✅ live-tested |
-| Gesture/voice measurement tools (accuracy by distance, latency) | ✅ |
-| Data model: DFD, ERD, PostgreSQL schema | ✅ |
-| MAVLink link + ArduPilot SITL | ⏳ next |
-| Flight recorder writing to PostgreSQL, audit log | ⏳ |
-| Backend API + live web dashboard | ⏳ |
-| Follow-me in simulation (moving operator, wind, noise, latency) | ⏳ |
-| Real drone: bench tests with propellers off | ⏳ |
-
 ## Safety
 
 Manual RC override and ArduPilot failsafes are set up before any autonomous flight. Speed is limited, the drone
