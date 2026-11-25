@@ -26,16 +26,16 @@ on a real drone. The plan is in [docs/architecture.md](docs/architecture.md).
 
 ## How it works
 
-```
-camera -> detect and track -> target lock -> follow controller -> avoidance pilot -> safety shield -> ArduPilot
-                                                                                        (MAVLink, GUIDED mode)
-every step is written to the flight database
-```
+ArduPilot flies the drone and keeps it stable. This project runs on a laptop and sends it velocity commands over
+MAVLink. Each camera frame passes through four parts:
 
-ArduPilot keeps the drone stable. This code only sends bounded velocity commands, and the safety shield has the
-last word: at least 5 m from the target, no fast approach, hover when the lock is lost. The database only records;
-it is never in the control loop. Targets are limited to the operator, people who agreed to be followed and the
-operator's own vehicles.
+- **Perception** finds people and vehicles and keeps the lock on the chosen target.
+- **Follow controller** works out where the drone should be to keep its distance.
+- **Pilot** steers around obstacles: a reinforcement-learning pilot or a classical one.
+- **Safety shield** enforces the minimum distance and speed limit, and hovers when the target is lost.
+
+Everything is written to PostgreSQL for replay and reports; the database is never in the control loop. Details are
+in [docs/architecture.md](docs/architecture.md).
 
 ## Getting started
 
