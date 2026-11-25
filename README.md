@@ -6,7 +6,7 @@
 A drone that follows its operator, obeys hand gestures and voice commands, and records every flight, command and
 decision for live monitoring and analysis.
 
-[![CI](https://github.com/fonneyx/Autonomous-Drone-Vision/actions/workflows/ci.yml/badge.svg)](https://github.com/fonneyx/Autonomous-Drone-Vision/actions/workflows/ci.yml)
+[![CI](https://github.com/fonneyx/autonomous-drone-vision/actions/workflows/ci.yml/badge.svg)](https://github.com/fonneyx/autonomous-drone-vision/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![ArduPilot](https://img.shields.io/badge/ArduPilot-GUIDED%20mode-0b6aa2)
@@ -85,8 +85,8 @@ velocity commands, and the safety shield can always override it.
 Python 3.11+ on Windows, Linux or macOS.
 
 ```bash
-git clone https://github.com/fonneyx/Autonomous-Drone-Vision.git
-cd Autonomous-Drone-Vision
+git clone https://github.com/fonneyx/autonomous-drone-vision.git
+cd autonomous-drone-vision
 python -m venv .venv
 .venv\Scripts\activate                 # Linux/macOS: source .venv/bin/activate
 pip install -e . --group dev          # or: uv sync
