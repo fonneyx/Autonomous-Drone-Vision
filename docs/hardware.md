@@ -1,6 +1,6 @@
-# Hardware: a real follow-me drone on a student budget
+# Hardware: a low-cost real follow-me drone
 
-Goal: the cheapest drone that can still run the **same code** as the simulator and fly the defense demo
+Goal: the cheapest drone that can still run the **same code** as the simulator and fly the demo
 safely. Prices are rough AliExpress-level estimates in USD (late 2026); check local shops in Kazakhstan, they
 can be cheaper for batteries and shipping is free.
 
