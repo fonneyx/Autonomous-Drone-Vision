@@ -45,7 +45,7 @@ from dronevision.evaluation.command_trials import (  # noqa: E402
     make_plan,
 )
 
-OUT_DIR = ROOT / "runs" / "measurements"
+OUT_DIR = ROOT / "results" / "commands"
 DEFAULT_CONDITIONS = {"gesture": ["1m", "2m", "3m", "5m"], "voice": ["quiet", "noisy"]}
 WHITE, GREY, YELLOW, GREEN, RED, CYAN = (255, 255, 255), (150, 150, 150), (0, 220, 255), (60, 200, 60), (40, 40, 230), (230, 200, 40)
 
@@ -108,7 +108,7 @@ def main() -> None:
     parser.add_argument("--video", type=Path, help="Use a video file instead of the webcam (testing).")
     parser.add_argument("--mic", type=int, help="Microphone device index (default: system default).")
     parser.add_argument("--hfov", type=float, default=70.0, help="Camera horizontal field of view (deg).")
-    parser.add_argument("--out", type=Path, help="CSV file (default: runs/measurements/<source>_<time>.csv).")
+    parser.add_argument("--out", type=Path, help="CSV file (default: results/commands/<source>_<time>.csv).")
     parser.add_argument("--record", action="store_true",
                         help="Also save the camera video + a frame log next to the CSV (stays on this laptop), so "
                              "the session can be re-analysed later without repeating it.")

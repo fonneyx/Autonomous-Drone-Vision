@@ -1,7 +1,7 @@
 """Watch a trained avoidance policy fly the MuJoCo obstacle course, or score it.
 
 Examples:
-    python scripts/demo/fly_avoidance.py                         # newest best_model, 3D viewer
+    python scripts/demo/fly_avoidance.py                         # released pilot (or newest local run), 3D viewer
     python scripts/demo/fly_avoidance.py --obstacles 45          # harder course
     python scripts/demo/fly_avoidance.py --random                # untrained drone, for comparison
     python scripts/demo/fly_avoidance.py --headless --episodes 100   # success-rate test
@@ -28,13 +28,18 @@ from dronevision.sim.avoidance_env import CONTROL_DT, DEPTH_RANGE, DroneAvoidanc
 
 
 def newest_model() -> Path:
+    """The released pilot (models/avoidance-pilot.zip), else the newest local training run."""
+    released = ROOT / "models" / "avoidance-pilot.zip"
+    if released.exists():
+        return released
     candidates = sorted(
         (ROOT / "runs" / "avoidance").glob("*/best_model.zip"),
         key=lambda path: path.stat().st_mtime,
         reverse=True,
     )
     if not candidates:
-        raise FileNotFoundError("No trained model yet. Run scripts/train/train_pilot.py or pass --random.")
+        raise FileNotFoundError("No model. Run scripts/tools/download_models.py, train one with "
+                                "scripts/train/train_pilot.py, or pass --random.")
     return candidates[0]
 
 
@@ -46,7 +51,7 @@ def depth_preview(env: DroneAvoidanceEnv) -> np.ndarray:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--model", type=Path, help="Policy .zip (default: newest best_model.zip).")
+    parser.add_argument("--model", type=Path, help="Policy .zip (default: models/avoidance-pilot.zip).")
     parser.add_argument("--random", action="store_true", help="Fly with random actions instead.")
     parser.add_argument("--episodes", type=int, default=5)
     parser.add_argument("--obstacles", type=int, help="Fixed obstacle count (default: random 10-40).")

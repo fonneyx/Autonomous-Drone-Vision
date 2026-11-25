@@ -217,34 +217,18 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Local model weights and user datasets
+# Model weights (downloaded: scripts/tools/download_models.py), datasets and run outputs
+/models/*
+!/models/README.md
 *.pt
-/data/*
-!/data/data.yaml
-!/models/
-!/models/.gitkeep
-
-# Training outputs: only the trained pilot that the project uses is uploaded
-/runs/*
-!/runs/avoidance/
-/runs/avoidance/*
-!/runs/avoidance/avoidance-2/
-/runs/avoidance/avoidance-2/*
-!/runs/avoidance/avoidance-2/best_model.zip
-!/runs/avoidance/avoidance-2/evaluations.npz
-# Command measurements (small CSVs + report) are kept: they are the evaluation results
-!/runs/measurements/
-# ...but not the session videos (large, and they show the tester)
-/runs/measurements/*_video.*
+*.onnx
+/data/
+/runs/
+# Command measurement session videos (large, and they show the tester)
+/results/**/*_video.*
 
 # Editor settings
 .vscode/
-
-# Blender auto-backups
-*.blend1
-
-# MediaPipe models (downloaded on first use)
-/models/*.task
 
 # Private working notes (kept locally, not published)
 /CLAUDE.md

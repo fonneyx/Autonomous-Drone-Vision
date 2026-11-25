@@ -21,7 +21,7 @@ else:
     from .advisories import Detection, assess_detections
     from .data_collector import LowConfidenceFrameCollector
 
-DEFAULT_CONFIG = ROOT / "config" / "params.yaml"
+DEFAULT_CONFIG = ROOT / "configs" / "params.yaml"
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
