@@ -1,4 +1,4 @@
-"""Turn command-trial CSV rows into thesis tables: accuracy, false triggers, latency, confusions.
+"""Turn command-trial CSV rows into evaluation tables: accuracy, false triggers, latency, confusions.
 
 Accuracy = correct / (correct + wrong + missed) for each command and condition, with a
 95 % Wilson interval (honest for small samples such as 5-20 trials). Control trials give
@@ -118,7 +118,7 @@ def _pct(x: float) -> str:
 
 
 def markdown(rows: list[dict[str, str]]) -> str:
-    """All tables as Markdown, ready to paste into the thesis notes."""
+    """All tables as Markdown, ready to paste into a report."""
     rows = [r for r in rows if r["outcome"] != SKIPPED]
     lines = ["# Command recognition measurements", ""]
     lines.append(f"Trials: {len(rows)} (skipped trials left out). Accuracy = correct / attempts, "
