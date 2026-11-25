@@ -1,7 +1,7 @@
 [project]
 name = "dronevision"
 version = "0.2.0"
-description = "Information system for intelligent drone control, monitoring and data processing"
+description = "Autonomous drone ground station: tap-to-track following, obstacle avoidance, live monitoring and a flight data recorder"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -40,7 +40,6 @@ addopts = "-m 'not sitl'"
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["scripts/blender"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

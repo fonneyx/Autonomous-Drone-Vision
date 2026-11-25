@@ -1,9 +1,9 @@
 """Tables and charts from the command measurements (scripts/eval/measure_commands.py).
 
-    python scripts/eval/report_commands.py                      # all CSVs in runs/measurements
-    python scripts/eval/report_commands.py runs/measurements/gesture_20261105_181500.csv
+    python scripts/eval/report_commands.py                      # all CSVs in results/commands
+    python scripts/eval/report_commands.py results/commands/gesture_20261105_181500.csv
 
-Writes to runs/measurements/report/:
+Writes to results/commands/report/:
     report.md              accuracy (95 % Wilson interval), false triggers, latency, confusions
     gesture_accuracy.png   accuracy vs distance, one line per gesture
     voice_accuracy.png     accuracy per phrase, one bar per noise condition
@@ -22,7 +22,7 @@ from dronevision.commands import Command  # noqa: E402
 from dronevision.evaluation.command_report import accuracy, markdown  # noqa: E402
 from dronevision.evaluation.command_trials import SKIPPED, read_csv  # noqa: E402
 
-DATA_DIR = ROOT / "runs" / "measurements"
+DATA_DIR = ROOT / "results" / "commands"
 # Validated categorical palette (fixed order); text stays in ink colours, not series colours
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 SURFACE, INK, INK_2, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
@@ -105,7 +105,7 @@ def voice_chart(rows: list[dict[str, str]], path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("csv", nargs="*", type=Path, help="CSV files (default: all in runs/measurements).")
+    parser.add_argument("csv", nargs="*", type=Path, help="CSV files (default: all in results/commands).")
     parser.add_argument("--out", type=Path, default=DATA_DIR / "report")
     args = parser.parse_args()
     files = args.csv or sorted(DATA_DIR.glob("*.csv"))

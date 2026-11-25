@@ -1,83 +1,95 @@
-# Architecture and roadmap
+# Architecture
 
-**Project:** an information system for intelligent drone control, monitoring and data processing.
+Autonomous Drone Vision is a ground-station system for an ArduPilot drone. The laptop is the brain: it runs
+perception, decides what the drone should do, keeps the drone inside a safety envelope, and records every flight.
+The drone carries only a flight controller, a camera link and a radio.
 
-
-## 1. What the information system does
-
-The existing follow-me code (tracking, re-identification, gestures, voice, arbiter, follow controller, RL pilot) is the **intelligent control** module. The information system is everything around it that a person can see, use and check afterwards.
-
-| Function | What the user gets |
-|---|---|
-| Control | Gestures and voice give commands; the arbiter decides; the laptop sends safe velocity commands to ArduPilot. The dashboard gives high-level buttons only (start follow, hold, land, return), never raw setpoints. |
-| Monitoring | A live web dashboard: video with the operator box, mode, battery, altitude, distance to the operator, map, command log, warnings. |
-| Data processing | Every flight is recorded in a database: telemetry, perception results, commands, arbiter decisions **with a reason**, avoidance overrides, photos and video, model versions. Reports are built from it: accuracy by distance, latency, operator-in-frame %, ID switches, rejected commands. |
-| Records and audit | A tamper-evident (hash-chained) log of every decision, so any flight can be explained afterwards: "why did it land at 12:03:41?" |
-| Users and consent | Operator profiles, consent records, roles (operator, analyst, admin), retention and blurring of bystanders. |
-
-What this system adds compared with existing platforms (PX4 Flight Review, DJI FlightHub, WebODM, Aerobridge): none of them store operator consent, perception outputs, model versions, arbiter decisions with reasons, or evaluation trials.
-
-## 2. Architecture
+## Overview
 
 ```
- [Drone or ArduPilot SITL] --MAVLink UDP 14550--> [Link service (pymavlink)]
- [Camera / video link] ----frames----> [Perception: YOLO + re-ID + gestures]  [Mic -> Vosk]
-                                                  \            |            /
-                                                   [Command arbiter + follow controller + safety]
-                                                              |
-                              [Recorder] --> PostgreSQL (+PostGIS, optional TimescaleDB), media files on disk
-                                                              |
-                     [FastAPI backend: REST + WebSocket]  [MediaMTX: WebRTC video]
-                                                              |
-                                          [Web dashboard: React + Vite + Leaflet]
- QGroundControl / Mission Planner stays connected in parallel (mavlink-router) as the safety GCS.
+camera ──► detect + track (YOLO11) ──► target lock (re-ID, lock confidence) ◄── operator selects a target
+                                              │                                  (dashboard click or voice)
+                                              ▼
+              follow controller ──► avoidance pilot (depth from one camera) ──► safety shield
+                                                                                    │
+                                              MAVLink adapter (GUIDED velocity) ◄───┘
+                                                     │
+                                ArduPilot SITL + Webots  ·  real quad  ·  later: FPV quad, plane
+
+every stage ──► flight recorder ──► PostgreSQL ──► backend API ──► HUD dashboard, replay, reports
 ```
 
-- **Laptop is the brain.** One Python process (asyncio) owns the MAVLink link. Only the command service writes MAVLink, with validation, clamps and rate limits.
-- **GUIDED velocity commands:** `SET_POSITION_TARGET_LOCAL_NED`, velocity-only type_mask 3527, sent at 5-10 Hz only while the operator track is fresh. Lost track → zero velocity, then BRAKE/LOITER. ArduPilot stops by itself 3 s after the last command.
-- **Authority order:** RC transmitter > ArduPilot failsafes (GCS heartbeat, RC, battery, geofence) > laptop > dashboard.
-- **Same code for sim and real drone:** both are MAVLink on UDP 14550, so SITL is the main test bench.
-- **Plain Python, not ROS 2** (ROS 2 on Windows 11 is weak). A clean interface layer leaves room for a ROS 2 bridge later.
+## Design rules
 
-## 3. Database (first version)
+1. **Decisions happen in code, in real time.** The arbiter, the pilots and the safety shield run in one Python
+   process. The database is a flight recorder: it only stores what happened and never sits in the control loop.
+2. **ArduPilot flies the aircraft.** The laptop sends bounded velocity setpoints in GUIDED mode
+   (`SET_POSITION_TARGET_LOCAL_NED`, 5-10 Hz). ArduPilot keeps the drone stable and stops on its own if setpoints
+   stop arriving.
+3. **Authority order:** RC transmitter > ArduPilot failsafes (RC, GCS heartbeat, battery, geofence) > safety shield
+   > arbiter > operator requests.
+4. **One MAVLink adapter.** The simulator and every real vehicle are integrations behind the same interface, so the
+   rest of the code does not change between them.
+5. **Plain Python, not ROS 2,** because ROS 2 support on Windows is weak. The adapter layer leaves room for a ROS 2
+   bridge later.
 
-PostgreSQL + PostGIS; TimescaleDB only if telemetry becomes large. Media files stay on disk, and the database keeps only their path and SHA-256.
+## Components
 
-Main tables: `operator`, `consent`, `appearance_template`, `drone`, `flight`, `telemetry` (10-50 Hz), `video`, `photo`, `perception_frame`, `track_event`, `command_event`, `arbiter_decision` (reason code), `avoidance_action`, `model_version`, `dataset_version`, `evaluation_session`, `evaluation_trial`, `alert`, `audit_event` (hash chain), `app_user`/`role`.
+| Component | Package | What it does | Status |
+|---|---|---|---|
+| Detector + tracker | `perception/` | YOLO11 detection, track IDs per object | Built for people; general objects next |
+| Target lock | `perception/reid.py` | Keeps the selected target through occlusions, reports lock confidence | Built for the operator; any allowed object next |
+| Voice commands | `voice/` | Offline Vosk: follow, stop, come back, land | Built |
+| Gestures | `perception/gestures.py` | MediaPipe palm / fist / wave, short range | Built, optional |
+| Arbiter | `control/arbiter.py` | Priorities, mode changes, accepts or rejects requests with a reason | Built |
+| Follow controller | `control/follow_controller.py` | Keeps distance and bearing to the target | Built |
+| Avoidance pilots | `control/`, `sim/` | RL pilot (PPO), classical follow-the-gap, ArduPilot built-in avoidance | RL and classical built; depth model next |
+| Safety shield | `control/safety_shield.py` | Limits speed and distance, hovers when unsure | Built |
+| Evaluation | `evaluation/` | Command trials, accuracy and latency reports | Built |
+| MAVLink adapter | `link/` | pymavlink connection, GUIDED setpoints, telemetry | Next |
+| Simulation | `sim/` | ArduPilot SITL + Webots world with a camera, cars and pedestrians | Next |
+| Flight recorder | `recorder/` | Writes flights, telemetry, track samples and decisions to PostgreSQL | Planned |
+| Backend | `apps/backend/` | FastAPI: REST for flights and reports, WebSocket for live telemetry | Planned |
+| Dashboard | `apps/dashboard/` | HUD-style live view, target selection, replay, reports | Planned ([wireframes](ui/README.md)) |
 
-The current data model is in `docs/database/` (ER diagram + `schema.sql`); migrations will use Alembic.
+## Tap to track
 
-## 4. Engineering documents
+The operator selects an object on the live video, and the drone follows it.
 
-- Requirements with IDs: FR-xx, NFR-xx, SR-xx (safety), plus a traceability matrix (ISO/IEC/IEEE 29148, ISO/IEC 25010:2023, ГОСТ 34.602-2020).
-- UML in PlantUML: use case (+ descriptions), class, sequence (gesture → arbiter → MAVLink → DB → dashboard), activity, **state machine** (arbiter modes), component, deployment (laptop + drone + browser), ER.
-- Test plan and results: unit tests, replay tests from recorded flights, SITL tests (`pytest -m sitl`), load test of telemetry ingestion, dashboard end-to-end tests (Playwright).
+- **Allowed targets:** the operator (the default), registered people who agreed to be followed, and vehicles or
+  boats the operator owns. Aircraft, drones and animals are not allowed targets.
+- **Lock states:** `idle → selected → locked → following ⇄ reacquiring → lost (hover) → return home`.
+- **Safety envelope:**
+  - at least 5 m from the target
+  - never closing in faster than about 1 m/s
+  - a maximum speed and a geofence
+  - lost lock: hover for 3 s, try to re-acquire, then return home
 
-## 5. Optional real drone (laptop as the brain)
+## Obstacle avoidance
 
-The drone carries only cheap parts; all ML runs on the laptop.
+Distance to obstacles comes from one camera through a monocular depth model, so no lidar is needed. Three pilots
+are compared on the same courses: the RL pilot, a classical follow-the-gap pilot, and ArduPilot's built-in
+avoidance. The metrics are success rate, minimum obstacle distance and smoothness.
 
-| Part | Choice |
+## Data
+
+PostgreSQL, with the schema in [`database/schema.sql`](database/schema.sql) and the ER diagram in
+[`database/`](database/README.md). Media files stay on disk, and the database keeps their path and SHA-256. Next
+tables to add: `target_lock` (what was selected, by whom, start and end, end reason) and `track_sample` (box,
+confidence, estimated distance).
+
+## Vehicles
+
+| Vehicle | Changes needed |
 |---|---|
-| Flight controller | SpeedyBee F405 V4 stack with ArduPilot |
-| Altitude/position indoors | MicoAir MTF-01 optical flow + rangefinder |
-| RC + telemetry | RadioMaster Pocket ELRS in MAVLink mode (one radio; laptop connects over the transmitter's Wi-Fi on UDP 14550) |
-| Video | RunCam WiFiLink 2 / OpenIPC (best image for YOLO) or analog 5.8 GHz + USB receiver (cheapest) |
-| Never cut | RC transmitter, good battery and charger, prop guards, GPS + compass |
+| ArduPilot SITL (copter) | Main test bench |
+| Real quad (SpeedyBee F405, ArduPilot) | Bench test with props off first |
+| FPV quad | Same code |
+| Plane (ArduPilot Plane) | New follow rule (orbit or trail behind the target); lost lock means loiter instead of hover |
 
-- About $330-450 at Western prices; AliExpress and Kazakh prices are still to check.
-- Kazakh rules: autonomous flight is outside the open category, so the real drone is a **props-off bench demo** plus, at most, a tethered test outside settlements. It is not part of the required result.
-- Licence-free radio limits (2020 list, re-check): 2.4 GHz 10 mW, 5.8 GHz 25 mW.
+## Measurements
 
-## 6. Phases
-
-| # | Phase | Done when |
-|---|---|---|
-| 0 | Repository reorganisation | New layout, tests pass, pushed to GitHub |
-| 1 | MAVLink link + ArduPilot SITL (WSL) | Webcam follow-me steers a SITL copter in GUIDED; failsafe tests pass |
-| 2 | Recorder + database | Each run creates a flight with telemetry, commands, decisions, perception rows; audit chain verifies |
-| 3 | Backend API + live video | REST + WebSocket telemetry; WebRTC video through MediaMTX |
-| 4 | Web dashboard | Live page, flights list, flight replay, reports, operator/consent pages |
-| 5 | Analytics + measurements | Accuracy-by-distance, latency and tracking reports from the database |
-| 6 | Engineering documents | Requirements, UML, ER, test plan with results |
-| 7 | Optional hardware | Bench test with props off: same code, real link |
+- **Lock:** percentage of time locked, time to re-acquire after occlusion, wrong-target switches.
+- **Follow:** distance error against 5 m, minimum distance ever reached, speed limit respected.
+- **Avoidance:** success rate and minimum obstacle distance for each pilot.
+- **System:** delay from camera frame to command, dashboard latency, depth-model FPS.

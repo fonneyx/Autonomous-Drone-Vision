@@ -6,7 +6,7 @@ Tasks:
 Examples:
     python scripts/train/train_pilot.py --task avoidance                   # 3M steps
     python scripts/train/train_pilot.py --task avoidance --timesteps 200000 # quick trial
-    python scripts/train/train_pilot.py --resume runs/avoidance/avoidance-2/best_model.zip
+    python scripts/train/train_pilot.py --resume models/avoidance-pilot.zip
 
 Progress: tensorboard --logdir runs/<task>/tensorboard
 Ctrl+C stops training and still saves the model.
