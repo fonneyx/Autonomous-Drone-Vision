@@ -1,4 +1,4 @@
-"""Measure gesture and voice command accuracy and latency (thesis metrics).
+"""Measure gesture and voice command accuracy and latency (evaluation metrics).
 
 The screen tells you what to do; every trial is saved to a CSV file straight away.
 

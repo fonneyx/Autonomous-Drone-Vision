@@ -1,9 +1,7 @@
-# System plan
+# Architecture and roadmap
 
-**Thesis:** Development of an Information System for Intelligent Drone Control, Monitoring, and Data Processing.
-(RU: Разработка информационной системы для интеллектуального управления дроном, мониторинга и обработки данных.)
+**Project:** an information system for intelligent drone control, monitoring and data processing.
 
-Background research: `../reports/Drone information system software design.md` (outside the repo).
 
 ## 1. What the information system does
 
@@ -17,7 +15,7 @@ The existing follow-me code (tracking, re-identification, gestures, voice, arbit
 | Records and audit | A tamper-evident (hash-chained) log of every decision, so any flight can be explained afterwards: "why did it land at 12:03:41?" |
 | Users and consent | Operator profiles, consent records, roles (operator, analyst, admin), retention and blurring of bystanders. |
 
-Our own contribution compared with existing platforms (PX4 Flight Review, DJI FlightHub, WebODM, Aerobridge): none of them store operator consent, perception outputs, model versions, arbiter decisions with reasons, or evaluation trials.
+What this system adds compared with existing platforms (PX4 Flight Review, DJI FlightHub, WebODM, Aerobridge): none of them store operator consent, perception outputs, model versions, arbiter decisions with reasons, or evaluation trials.
 
 ## 2. Architecture
 
@@ -47,11 +45,11 @@ PostgreSQL + PostGIS; TimescaleDB only if telemetry becomes large. Media files s
 
 Main tables: `operator`, `consent`, `appearance_template`, `drone`, `flight`, `telemetry` (10-50 Hz), `video`, `photo`, `perception_frame`, `track_event`, `command_event`, `arbiter_decision` (reason code), `avoidance_action`, `model_version`, `dataset_version`, `evaluation_session`, `evaluation_trial`, `alert`, `audit_event` (hash chain), `app_user`/`role`.
 
-The ER diagram is written in DBML (`docs/uml/schema.dbml`); migrations use Alembic.
+The current data model is in `docs/database/` (ER diagram + `schema.sql`); migrations will use Alembic.
 
-## 4. Documents for the thesis
+## 4. Engineering documents
 
-- Requirements with IDs: FR-xx, NFR-xx, SR-xx (safety), plus a traceability matrix (ISO/IEC/IEEE 29148, ISO/IEC 25010:2023, ГОСТ 34.602-2020; check with the supervisor which ГОСТ the department wants).
+- Requirements with IDs: FR-xx, NFR-xx, SR-xx (safety), plus a traceability matrix (ISO/IEC/IEEE 29148, ISO/IEC 25010:2023, ГОСТ 34.602-2020).
 - UML in PlantUML: use case (+ descriptions), class, sequence (gesture → arbiter → MAVLink → DB → dashboard), activity, **state machine** (arbiter modes), component, deployment (laptop + drone + browser), ER.
 - Test plan and results: unit tests, replay tests from recorded flights, SITL tests (`pytest -m sitl`), load test of telemetry ingestion, dashboard end-to-end tests (Playwright).
 
@@ -81,5 +79,5 @@ The drone carries only cheap parts; all ML runs on the laptop.
 | 3 | Backend API + live video | REST + WebSocket telemetry; WebRTC video through MediaMTX |
 | 4 | Web dashboard | Live page, flights list, flight replay, reports, operator/consent pages |
 | 5 | Analytics + measurements | Accuracy-by-distance, latency and tracking reports from the database |
-| 6 | Thesis documents | Requirements, UML, ER, test plan with results |
+| 6 | Engineering documents | Requirements, UML, ER, test plan with results |
 | 7 | Optional hardware | Bench test with props off: same code, real link |
