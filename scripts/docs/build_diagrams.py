@@ -2,7 +2,7 @@
 
     python scripts/docs/build_diagrams.py
 
-Writes docs/analysis/{sequence-land-by-gesture,dfd-context,dfd-level0,dfd-level1}.{drawio,png} and
+Writes docs/analysis/{activity-land-by-gesture,sequence-land-by-gesture,dfd-context,dfd-level0,dfd-level1}.{drawio,png} and
 docs/database/erd.{drawio,png}. The names here match README "Users", the DFD stores and docs/database/schema.sql.
 """
 
@@ -23,36 +23,110 @@ SYSTEM = "Drone control, monitoring\nand data processing system"
 
 def sequence() -> Diagram:
     """Scenario: the operator lands the drone with a fist gesture (process 2.0, then 3.0)."""
-    d = Diagram("sequence-land-by-gesture", 1540, 800, "Sequence: land the drone with a fist gesture")
     names = ["Operator", "Drone\n(camera, ArduPilot)", "Person tracker\n(YOLO11-pose)", "Operator identifier\n(re-ID)",
-             "Command recognizer\n(MediaPipe / Vosk)", "Command arbiter", "Flight controller\nlink (MAVLink)",
-             "Database"]
-    xs = []
-    for i, name in enumerate(names):
-        x = 30 + i * 185
-        d.node(f"l{i}", "lifeline", x, 50, 165, 730, name)
-        xs.append(x + 82.5)
+             "Command recognizer\n(MediaPipe)", "Command arbiter", "Flight controller\nlink (MAVLink)", "Database"]
+    xs = [30 + i * 185 + 82.5 for i in range(len(names))]
     op, drone, tracker, ident, recog, arb, link, db = xs
-    steps = [
+    before = [
         (op, drone, "1: raises a fist, holds 1.5 s"),
         (drone, tracker, "2: camera video frame"),
         (tracker, ident, "3: person tracks + keypoints"),
-        (ident, db, "4: read appearance template (operator)"),
+        (ident, db, "4: getTemplate(operator_id)"),
         (db, ident, "5: appearance template", True),
-        (ident, recog, "6: operator track + hand"),
-        (recog, arb, "7: candidate LAND, conf. 0.93"),
-        (arb, arb, "8: check priority and flight mode"),
-        (arb, db, "9: save command_event (accepted)"),
-        (arb, link, "10: recognized command LAND"),
-        (link, drone, "11: SET_MODE LAND (MAVLink)"),
-        (drone, link, "12: telemetry: mode LAND, altitude", True),
-        (link, db, "13: save telemetry_sample"),
-        (link, op, '14: status "Landing" on the dashboard', True),
+        (ident, recog, "6: hand region + owner track"),
+        (recog, arb, "7: candidate LAND, conf. 0.93, owner"),
     ]
+    accepted = [
+        (arb, arb, "8: check priority and flight mode"),
+        (arb, db, "9: saveCommand(LAND, accepted)"),
+        (db, arb, "10: command_id", True),
+        (arb, link, "11: sendCommand(LAND)"),
+        (link, drone, "12: SET_MODE LAND (MAVLink)"),
+        (drone, link, "13: COMMAND_ACK accepted", True),
+        (link, db, "14: saveTelemetry(mode LAND, altitude)"),
+        (db, link, "15: ok", True),
+        (link, arb, "16: landing started", True),
+        (arb, op, '17: show status "Landing"'),
+    ]
+    rejected = [
+        (arb, db, "18: saveCommand(LAND, rejected, not the operator)"),
+        (db, arb, "19: command_id", True),
+        (arb, op, '20: show "Ignored: not the operator"'),
+    ]
+
+    d = Diagram("sequence-land-by-gesture", 1540, 100, "Sequence: land the drone with a fist gesture")
     y = 135
-    for x1, x2, label, *reply in steps:
-        d.message(x1, x2, y, label, reply=bool(reply))
-        y += 62 if x1 == x2 else 44
+
+    def add(steps) -> None:
+        nonlocal y
+        for x1, x2, label, *reply in steps:
+            d.message(x1, x2, y, label, reply=bool(reply))
+            y += 62 if x1 == x2 else 44
+
+    add(before)
+    frag_y = y - 16
+    y += 30  # room for the alt tab and the first guard
+    add(accepted)
+    else_y = y - 18
+    y += 26
+    add(rejected)
+    d.fragment(20, frag_y, 1500, y - 10 - frag_y, "alt",
+               [(frag_y, "[hand belongs to the operator]"), (else_y, "[else: another person's hand]")])
+    for i, name in enumerate(names):
+        d.node(f"l{i}", "lifeline", 30 + i * 185, 50, 165, y - 40, name)
+    d.node("note", "ref", 20, y + 20, 1500, 56,
+           "The operator can send the same LAND from the dashboard form (command_event.source = 'dashboard'): "
+           "then steps 1-7 are replaced by one request to the arbiter, and steps 8-20 stay the same.", number="Note")
+    d.H = int(y + 96)
+    return d
+
+
+def activity() -> Diagram:
+    """Same scenario as the sequence diagram: land the drone with a fist gesture."""
+    d = Diagram("activity-land-by-gesture", 1260, 1310, "Activity: land the drone with a fist gesture")
+    d.node("lane_op", "lane", 20, 50, 320, 1240, "Operator")
+    d.node("lane_sys", "lane", 340, 50, 560, 1240, "System (laptop)")
+    d.node("lane_drone", "lane", 900, 50, 340, 1240, "Drone")
+    d.node("start", "initial", 165, 100, 30, 30, "")
+    d.node("raise", "action", 60, 160, 240, 56, "Raise a fist toward\nthe camera")
+    d.node("stream", "action", 950, 160, 240, 56, "Stream camera video")
+    d.node("detect", "action", 500, 260, 240, 56, "Detect and track\npersons")
+    d.node("identify", "action", 500, 360, 240, 56, "Identify whose\nhand it is")
+    d.node("owner", "decision", 590, 450, 60, 60, "")
+    d.node("reject", "action", 755, 590, 140, 60, "Log the rejected\ncommand and reason")
+    d.node("recognize", "action", 500, 560, 240, 56, "Recognize the fist and\nmeasure hold time")
+    d.node("held", "decision", 590, 650, 60, 60, "")
+    d.node("fork", "bar", 460, 760, 320, 8, "")
+    d.node("save", "action", 400, 800, 200, 56, "Save the accepted\ncommand_event")
+    d.node("send", "action", 640, 800, 240, 56, "Send the LAND command\nover MAVLink")
+    d.node("land", "action", 950, 800, 240, 56, "Descend and land")
+    d.node("join", "bar", 460, 920, 320, 8, "")
+    d.node("show", "action", 500, 970, 240, 56, "Show \"Landed\" status\non the dashboard")
+    d.node("see", "action", 60, 1060, 240, 56, "See that the drone\nhas landed")
+    d.node("merge", "decision", 590, 1140, 60, 60, "")
+    d.node("end", "final", 605, 1240, 30, 30, "")
+
+    d.edge("start", (0.5, 1), "raise", (0.5, 0))
+    d.edge("raise", (1, 0.5), "stream", (0, 0.5))
+    d.edge("stream", (0.5, 1), "detect", (1, 0.5), points=[(1070, 288)])
+    d.edge("detect", (0.5, 1), "identify", (0.5, 0))
+    d.edge("identify", (0.5, 1), "owner", (0.5, 0))
+    d.edge("owner", (1, 0.5), "reject", (0.5, 0), "[another person's hand]", points=[(825, 480)], label_at=(770, 462))
+    d.edge("owner", (0.5, 1), "recognize", (0.5, 0), "[operator's hand]", label_at=(540, 535))
+    d.edge("recognize", (0.5, 1), "held", (0.5, 0))
+    d.edge("held", (0, 0.5), "detect", (0, 0.5), "[held < 1.5 s]", points=[(400, 680), (400, 288)],
+           label_at=(400, 480))
+    d.edge("held", (0.5, 1), "fork", (0.5, 0), "[held >= 1.5 s]", label_at=(545, 735))
+    d.edge("fork", (0.125, 1), "save", (0.5, 0))
+    d.edge("fork", (0.9375, 1), "send", (0.5, 0))
+    d.edge("send", (1, 0.5), "land", (0, 0.5))
+    d.edge("save", (0.5, 1), "join", (0.125, 0))
+    d.edge("land", (0.5, 1), "join", (1, 0.5), points=[(1070, 924)])
+    d.edge("join", (0.5, 1), "show", (0.5, 0))
+    d.edge("show", (0, 0.5), "see", (0.5, 0), points=[(180, 998)])
+    d.edge("see", (1, 0.5), "merge", (0.5, 0), points=[(620, 1088)])
+    d.edge("reject", (1, 0.5), "merge", (1, 0.5), points=[(1220, 620), (1220, 1170)])
+    d.edge("merge", (0.5, 1), "end", (0.5, 0))
     return d
 
 
@@ -213,7 +287,7 @@ def erd() -> Diagram:
 
 
 def main() -> None:
-    for diagram, folder in [(sequence(), ANALYSIS), (context(), ANALYSIS), (level0(), ANALYSIS),
+    for diagram, folder in [(activity(), ANALYSIS), (sequence(), ANALYSIS), (context(), ANALYSIS), (level0(), ANALYSIS),
                             (level1(), ANALYSIS), (erd(), DATABASE)]:
         diagram.save(folder, diagram.name)
         print("wrote", folder.relative_to(ROOT) / diagram.name, "(.drawio + .png)")

@@ -6,16 +6,21 @@
 A drone that follows its operator, obeys hand gestures and voice commands, and records every flight, command and
 decision for live monitoring and analysis.
 
-[![CI](https://github.com/fonneyx/Autonomous-Drone-Vision/actions/workflows/ci.yml/badge.svg)](https://github.com/fonneyx/Autonomous-Drone-Vision/actions/workflows/ci.yml)
+[![CI](https://github.com/fonneyx/autonomous-drone-vision/actions/workflows/ci.yml/badge.svg)](https://github.com/fonneyx/autonomous-drone-vision/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![ArduPilot](https://img.shields.io/badge/ArduPilot-GUIDED%20mode-0b6aa2)
 ![License](https://img.shields.io/badge/license-all%20rights%20reserved-lightgrey)
 
-[Features](#features) · [Users](#users) · [How it works](#how-it-works) · [Quick start](#quick-start) ·
-[Documentation](#documentation) · [Roadmap](#roadmap)
+[Purpose](#purpose) · [Features](#features) · [Users](#users) · [Requirements](#requirements) ·
+[How it works](#how-it-works) · [Quick start](#quick-start) · [Documentation](#documentation) · [Roadmap](#roadmap)
 
 </div>
+
+## Purpose
+
+Let one person control a drone hands-free with gestures and voice, while the system checks that every command
+really comes from that person and keeps a complete, queryable record of each flight.
 
 ## Features
 
@@ -39,6 +44,19 @@ decision for live monitoring and analysis.
 | **Drone** *(external system)* | Flight controller (ArduPilot) + camera: sends video and telemetry, receives flight commands over MAVLink. |
 
 These are the external entities of the [data flow diagrams](docs/analysis/README.md).
+
+## Requirements
+
+| ID | Requirement |
+|---|---|
+| R1 | The operator registers with a full name, an email and recorded consent before the first flight. |
+| R2 | The analyst registers drones and ML model versions (name, task, version, file hash). |
+| R3 | The operator starts a flight by choosing a drone and the environment (simulator or real). |
+| R4 | The system accepts gesture and voice commands only from the identified operator; commands from anyone else are rejected and logged with the reason. |
+| R5 | The operator lands or stops the drone with a held gesture (fist = land, open palm = stop), a voice command or a dashboard button. |
+| R6 | The system sends accepted commands to ArduPilot over MAVLink and records telemetry (flight mode, altitude, battery, distance to the operator). |
+| R7 | The operator sees the live view, the flight status and the command log on the dashboard. |
+| R8 | The analyst views flight reports: command accuracy and latency by source, and the models used in each flight. |
 
 ## How it works
 
@@ -67,8 +85,8 @@ velocity commands, and the safety shield can always override it.
 Python 3.11+ on Windows, Linux or macOS.
 
 ```bash
-git clone https://github.com/fonneyx/Autonomous-Drone-Vision.git
-cd Autonomous-Drone-Vision
+git clone https://github.com/fonneyx/autonomous-drone-vision.git
+cd autonomous-drone-vision
 python -m venv .venv
 .venv\Scripts\activate                 # Linux/macOS: source .venv/bin/activate
 pip install -e . --group dev          # or: uv sync
@@ -107,6 +125,7 @@ config/  assets/     settings, 3D models for the simulator
 
 **Analysis** - [overview and balancing](docs/analysis/README.md)
 
+- Activity diagram - land by gesture: [PNG](docs/analysis/activity-land-by-gesture.png) · [draw.io](docs/analysis/activity-land-by-gesture.drawio)
 - Sequence diagram - land by gesture: [PNG](docs/analysis/sequence-land-by-gesture.png) · [draw.io](docs/analysis/sequence-land-by-gesture.drawio)
 - DFD context diagram: [PNG](docs/analysis/dfd-context.png) · [draw.io](docs/analysis/dfd-context.drawio)
 - DFD level 0: [PNG](docs/analysis/dfd-level0.png) · [draw.io](docs/analysis/dfd-level0.drawio)
